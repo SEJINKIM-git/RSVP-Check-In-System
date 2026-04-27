@@ -5,8 +5,17 @@ from django.http import HttpResponse
 from checkin.models import GuestParticipant, RegisteredParticipant
 
 
-EXPORT_HEADERS = [
+ATTENDANCE_EXPORT_HEADERS = [
     "Type",
+    "Name",
+    "UNID",
+    "Major",
+    "Checked In",
+    "Check-in Time",
+]
+
+RSVP_EXPORT_HEADERS = [
+    "Submission Order",
     "Name",
     "UNID",
     "Major",
@@ -24,7 +33,7 @@ def build_attendance_csv_response():
     response["Content-Disposition"] = 'attachment; filename="final_attendance.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(EXPORT_HEADERS)
+    writer.writerow(ATTENDANCE_EXPORT_HEADERS)
 
     checked_in_registered = RegisteredParticipant.objects.filter(
         checked_in=True
@@ -52,6 +61,29 @@ def build_attendance_csv_response():
                 guest.major,
                 "Yes" if guest.checked_in else "No",
                 _format_checkin_time(guest.checkin_time),
+            ]
+        )
+
+    return response
+
+
+def build_rsvp_csv_response():
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="rsvp_participants.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(RSVP_EXPORT_HEADERS)
+
+    participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
+    for participant in participants:
+        writer.writerow(
+            [
+                participant.submission_order,
+                participant.name,
+                participant.unid,
+                participant.major,
+                "Yes" if participant.checked_in else "No",
+                _format_checkin_time(participant.checkin_time),
             ]
         )
 

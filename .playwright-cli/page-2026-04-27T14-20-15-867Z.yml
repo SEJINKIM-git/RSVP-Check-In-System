@@ -1,0 +1,54 @@
+- generic [ref=e3]:
+  - heading "Import RSVP Data" [level=1] [ref=e4]
+  - paragraph [ref=e5]: Upload the RSVP CSV file from Google Forms to register participants in submission order.
+  - generic [ref=e6]:
+    - generic [ref=e7]: RSVP CSV File
+    - button "RSVP CSV File" [ref=e8]
+    - button "Import" [ref=e9] [cursor=pointer]
+  - paragraph [ref=e10]: "Required columns: Name, UNID, Major"
+  - generic [ref=e11]:
+    - heading "Imported RSVP Participants" [level=2] [ref=e12]
+    - table [ref=e14]:
+      - rowgroup [ref=e15]:
+        - row "# Name UNID Major Check-in" [ref=e16]:
+          - columnheader "#" [ref=e17]
+          - columnheader "Name" [ref=e18]
+          - columnheader "UNID" [ref=e19]
+          - columnheader "Major" [ref=e20]
+          - columnheader "Check-in" [ref=e21]
+      - rowgroup [ref=e22]:
+        - row "1 Alice Kim u1234567 Electrical Engineering Toggle check-in for Alice Kim" [ref=e23]:
+          - cell "1" [ref=e24]
+          - cell "Alice Kim" [ref=e25]
+          - cell "u1234567" [ref=e26]
+          - cell "Electrical Engineering" [ref=e27]
+          - cell "Toggle check-in for Alice Kim" [ref=e28]:
+            - button "Toggle check-in for Alice Kim" [ref=e30] [cursor=pointer]
+        - row "2 Brian Lee u2345678 Economics Toggle check-in for Brian Lee" [ref=e31]:
+          - cell "2" [ref=e32]
+          - cell "Brian Lee" [ref=e33]
+          - cell "u2345678" [ref=e34]
+          - cell "Economics" [ref=e35]
+          - cell "Toggle check-in for Brian Lee" [ref=e36]:
+            - button "Toggle check-in for Brian Lee" [ref=e38] [cursor=pointer]
+        - row "3 Songyoon Beck u1623362 Business Toggle check-in for Songyoon Beck" [ref=e39]:
+          - cell "3" [ref=e40]
+          - cell "Songyoon Beck" [ref=e41]
+          - cell "u1623362" [ref=e42]
+          - cell "Business" [ref=e43]
+          - cell "Toggle check-in for Songyoon Beck" [ref=e44]:
+            - button "Toggle check-in for Songyoon Beck" [ref=e46] [cursor=pointer]
+        - row "4 Sejin Kim u1483423 Communications Toggle check-in for Sejin Kim" [ref=e47]:
+          - cell "4" [ref=e48]
+          - cell "Sejin Kim" [ref=e49]
+          - cell "u1483423" [ref=e50]
+          - cell "Communications" [ref=e51]
+          - cell "Toggle check-in for Sejin Kim" [ref=e52]:
+            - button "Toggle check-in for Sejin Kim" [ref=e54] [cursor=pointer]
+        - row "5 Yulip Kim u1849284 Information Systems Toggle check-in for Yulip Kim" [ref=e55]:
+          - cell "5" [ref=e56]
+          - cell "Yulip Kim" [ref=e57]
+          - cell "u1849284" [ref=e58]
+          - cell "Information Systems" [ref=e59]
+          - cell "Toggle check-in for Yulip Kim" [ref=e60]:
+            - button "Toggle check-in for Yulip Kim" [ref=e62] [cursor=pointer]

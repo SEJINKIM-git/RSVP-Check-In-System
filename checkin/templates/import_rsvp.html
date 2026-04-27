@@ -79,6 +79,77 @@
             color: #6b7280;
         }
 
+        .actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .secondary-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border-radius: 10px;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 11px 18px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .secondary-button:hover {
+            background: #cbd5e1;
+        }
+
+        .search-row {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 12px;
+        }
+
+        .search-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .search-field label {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .search-field input {
+            padding: 11px 14px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 0.98rem;
+            color: #1f2937;
+        }
+
+        .search-field input:focus {
+            outline: 2px solid #bfdbfe;
+            outline-offset: 1px;
+            border-color: #60a5fa;
+        }
+
+        .search-hint {
+            margin: 0 0 8px;
+            font-size: 0.92rem;
+            color: #64748b;
+        }
+
         .results {
             margin-top: 24px;
             padding-top: 24px;
@@ -194,9 +265,27 @@
             border-color: #60a5fa;
         }
 
+        .danger-button {
+            background: #dc2626;
+        }
+
+        .danger-button:hover {
+            background: #b91c1c;
+        }
+
         .empty-state {
             margin: 16px 0 0;
             color: #6b7280;
+        }
+
+        .search-empty {
+            display: none;
+            margin: 16px 0 0;
+            padding: 14px 16px;
+            border: 1px solid #dbe3ee;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #475569;
         }
     </style>
 </head>
@@ -214,6 +303,11 @@
             </form>
 
             <p class="hint">Required columns: Name, UNID, Major</p>
+
+            <div class="actions-row">
+                <a href="{% url 'checkin:export_rsvp' %}" class="secondary-button">Export RSVP List (CSV)</a>
+                <a href="{% url 'checkin:export_attendance' %}" class="secondary-button">Export Final Attendance (CSV)</a>
+            </div>
 
             {% if summary %}
                 <div class="results">
@@ -255,11 +349,26 @@
             {% endif %}
 
             <div class="participants-section">
-                <h2>Imported RSVP Participants</h2>
+                <div class="section-header">
+                    <h2>Imported RSVP Participants</h2>
+                    {% if participants %}
+                        <form method="post" action="{% url 'checkin:delete_all_participants' %}" class="checkbox-form" onsubmit="return confirm('Delete the entire RSVP list? Export it first if you want a backup.');">
+                            {% csrf_token %}
+                            <button type="submit" class="danger-button">Delete Entire RSVP List</button>
+                        </form>
+                    {% endif %}
+                </div>
 
                 {% if participants %}
+                    <div class="search-row">
+                        <div class="search-field">
+                            <label for="participant-search">Search by Name or UNID</label>
+                            <input id="participant-search" type="text" placeholder="Type a name or UNID">
+                        </div>
+                    </div>
+                    <p class="search-hint">The list updates as you type and matches either field.</p>
                     <div class="table-wrapper">
-                        <table>
+                        <table id="participants-table">
                             <thead>
                                 <tr>
                                     <th>#</th>
@@ -269,9 +378,9 @@
                                     <th class="checkin-cell">Check-in</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="participants-table-body">
                                 {% for participant in participants %}
-                                    <tr>
+                                    <tr data-name="{{ participant.name|lower }}" data-unid="{{ participant.unid|lower }}">
                                         <td>{{ participant.submission_order }}</td>
                                         <td>{{ participant.name }}</td>
                                         <td>{{ participant.unid }}</td>
@@ -294,11 +403,43 @@
                             </tbody>
                         </table>
                     </div>
+                    <p id="search-empty-state" class="search-empty">No participants match your current search.</p>
                 {% else %}
                     <p class="empty-state">No RSVP participants have been imported yet.</p>
                 {% endif %}
             </div>
         </div>
     </div>
+    <script>
+        const participantSearchInput = document.getElementById("participant-search");
+        const participantRows = Array.from(document.querySelectorAll("#participants-table-body tr"));
+        const searchEmptyState = document.getElementById("search-empty-state");
+
+        function filterParticipantRows() {
+            if (!participantSearchInput || participantRows.length === 0 || !searchEmptyState) {
+                return;
+            }
+
+            const query = participantSearchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            participantRows.forEach((row) => {
+                const rowName = row.dataset.name || "";
+                const rowUnid = row.dataset.unid || "";
+                const shouldShow = !query || rowName.includes(query) || rowUnid.includes(query);
+
+                row.style.display = shouldShow ? "" : "none";
+                if (shouldShow) {
+                    visibleCount += 1;
+                }
+            });
+
+            searchEmptyState.style.display = visibleCount === 0 ? "block" : "none";
+        }
+
+        if (participantSearchInput) {
+            participantSearchInput.addEventListener("input", filterParticipantRows);
+        }
+    </script>
 </body>
 </html>

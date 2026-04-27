@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 
 from django.db import transaction
 from django.db.models import Max
@@ -12,6 +13,8 @@ REQUIRED_FIELDS = {
     "unid": {"unid", "uni", "student id", "university id"},
     "major": {"major", "program", "department"},
 }
+
+UNID_PATTERN = re.compile(r"^u\d{7}$")
 
 
 def _normalize_header(value):
@@ -92,9 +95,10 @@ def import_rsvp_file(uploaded_file):
         )
         return summary
 
-    existing_unids = set(
-        RegisteredParticipant.objects.values_list("unid", flat=True)
-    )
+    existing_unids = {
+        (unid or "").strip().lower()
+        for unid in RegisteredParticipant.objects.values_list("unid", flat=True)
+    }
     seen_unids_in_file = set()
     next_submission_order = (
         RegisteredParticipant.objects.aggregate(max_order=Max("submission_order"))["max_order"] or 0
@@ -105,6 +109,7 @@ def import_rsvp_file(uploaded_file):
         name = (row.get(matched_headers["name"]) or "").strip()
         unid = (row.get(matched_headers["unid"]) or "").strip()
         major = (row.get(matched_headers["major"]) or "").strip()
+        normalized_unid = unid.lower()
 
         missing_values = []
         if not name:
@@ -121,19 +126,26 @@ def import_rsvp_file(uploaded_file):
             )
             continue
 
-        if unid in existing_unids or unid in seen_unids_in_file:
+        if not UNID_PATTERN.match(normalized_unid):
             summary["skipped_count"] += 1
-            if unid not in summary["duplicate_unids"]:
-                summary["duplicate_unids"].append(unid)
+            summary["errors"].append(
+                f"Row {csv_row_number} skipped: UNID must be in the format u1234567."
+            )
+            continue
+
+        if normalized_unid in existing_unids or normalized_unid in seen_unids_in_file:
+            summary["skipped_count"] += 1
+            if normalized_unid not in summary["duplicate_unids"]:
+                summary["duplicate_unids"].append(normalized_unid)
             continue
 
         next_submission_order += 1
-        seen_unids_in_file.add(unid)
+        seen_unids_in_file.add(normalized_unid)
         participants_to_create.append(
             RegisteredParticipant(
                 submission_order=next_submission_order,
                 name=name,
-                unid=unid,
+                unid=normalized_unid,
                 major=major,
             )
         )
