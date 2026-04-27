@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Import RSVP Data</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .page {
+            max-width: 900px;
+            margin: 48px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+            padding: 28px;
+        }
+
+        h1, h2, h3 {
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            margin-bottom: 24px;
+            color: #4b5563;
+        }
+
+        .upload-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .upload-label {
+            font-weight: 600;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+        }
+
+        button {
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: #ffffff;
+            padding: 11px 18px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .hint {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #6b7280;
+        }
+
+        .results {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .participants-section {
+            margin-top: 28px;
+            padding-top: 24px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .summary-box {
+            padding: 16px;
+            border-radius: 12px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+        }
+
+        .summary-label {
+            display: block;
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+
+        .summary-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .list-box {
+            margin-top: 16px;
+            padding: 18px;
+            border-radius: 12px;
+        }
+
+        .duplicate-box {
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+        }
+
+        .error-box {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+        }
+
+        ul {
+            margin-bottom: 0;
+        }
+
+        .table-wrapper {
+            margin-top: 16px;
+            overflow-x: auto;
+            border: 1px solid #dbe3ee;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f8fafc;
+            font-size: 0.95rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .checkin-cell {
+            width: 110px;
+        }
+
+        .checkbox-form {
+            margin: 0;
+        }
+
+        .checkbox-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border-radius: 6px;
+            border: 1px solid #94a3b8;
+            background: #ffffff;
+            color: #2563eb;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+
+        .checkbox-button.checked {
+            background: #dbeafe;
+            border-color: #60a5fa;
+        }
+
+        .empty-state {
+            margin: 16px 0 0;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="card">
+            <h1>Import RSVP Data</h1>
+            <p class="subtitle">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
+
+            <form method="post" enctype="multipart/form-data" class="upload-form">
+                {% csrf_token %}
+                <label for="rsvp_file" class="upload-label">RSVP CSV File</label>
+                <input id="rsvp_file" type="file" name="rsvp_file" accept=".csv" required>
+                <button type="submit">Import</button>
+            </form>
+
+            <p class="hint">Required columns: Name, UNID, Major</p>
+
+            {% if summary %}
+                <div class="results">
+                    <h2>Import Results</h2>
+
+                    <div class="summary-grid">
+                        <div class="summary-box">
+                            <span class="summary-label">Imported Rows</span>
+                            <span class="summary-value">{{ summary.imported_count }}</span>
+                        </div>
+                        <div class="summary-box">
+                            <span class="summary-label">Skipped Rows</span>
+                            <span class="summary-value">{{ summary.skipped_count }}</span>
+                        </div>
+                    </div>
+
+                    {% if summary.duplicate_unids %}
+                        <div class="list-box duplicate-box">
+                            <h3>Duplicate UNIDs</h3>
+                            <ul>
+                                {% for unid in summary.duplicate_unids %}
+                                    <li>{{ unid }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    {% if summary.errors %}
+                        <div class="list-box error-box">
+                            <h3>Errors</h3>
+                            <ul>
+                                {% for error in summary.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <div class="participants-section">
+                <h2>Imported RSVP Participants</h2>
+
+                {% if participants %}
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Name</th>
+                                    <th>UNID</th>
+                                    <th>Major</th>
+                                    <th class="checkin-cell">Check-in</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for participant in participants %}
+                                    <tr>
+                                        <td>{{ participant.submission_order }}</td>
+                                        <td>{{ participant.name }}</td>
+                                        <td>{{ participant.unid }}</td>
+                                        <td>{{ participant.major }}</td>
+                                        <td class="checkin-cell">
+                                            <form method="post" action="{% url 'checkin:toggle_checkin' participant.id %}" class="checkbox-form">
+                                                {% csrf_token %}
+                                                <button
+                                                    type="submit"
+                                                    class="checkbox-button{% if participant.checked_in %} checked{% endif %}"
+                                                    aria-label="Toggle check-in for {{ participant.name }}"
+                                                    title="Toggle check-in"
+                                                >
+                                                    {% if participant.checked_in %}✓{% endif %}
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="empty-state">No RSVP participants have been imported yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
