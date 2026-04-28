@@ -267,6 +267,8 @@ class ImportPageParticipantListTests(TestCase):
         self.assertContains(response, "Delete Entire RSVP List")
         self.assertContains(response, "/checkin/participants/delete-all/")
         self.assertNotContains(response, "<th class=\"actions-cell\">Delete</th>", html=False)
+        self.assertContains(response, "Back to Dashboard")
+        self.assertContains(response, 'href="/checkin/"', html=False)
 
     def test_import_page_shows_combined_search_input(self):
         RegisteredParticipant.objects.create(

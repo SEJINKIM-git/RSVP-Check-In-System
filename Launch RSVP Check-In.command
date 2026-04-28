@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
-APP_URL="http://127.0.0.1:8000/checkin/import/"
+APP_URL="http://127.0.0.1:8000/checkin/"
 
 cd "$SCRIPT_DIR"
 

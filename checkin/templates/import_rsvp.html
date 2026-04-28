@@ -34,9 +34,59 @@
             margin-bottom: 10px;
         }
 
+        .eyebrow {
+            display: inline-block;
+            margin-bottom: 12px;
+            color: #cc0000;
+            font-family: "Industry", "Arial Black", Arial, sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
         .subtitle {
             margin-bottom: 24px;
             color: #4b5563;
+        }
+
+        .hero-header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 12px;
+        }
+
+        .hero-copy {
+            flex: 1 1 460px;
+            min-width: 0;
+        }
+
+        .top-actions {
+            display: flex;
+            justify-content: flex-end;
+            flex: 0 0 auto;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            padding: 12px 20px;
+            border-radius: 18px;
+            text-decoration: none;
+            background: #d60000;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            box-shadow: 0 10px 24px rgba(214, 0, 0, 0.18);
+        }
+
+        .back-link:hover {
+            background: #bb0000;
         }
 
         .upload-form {
@@ -292,8 +342,16 @@
 <body>
     <div class="page">
         <div class="card">
-            <h1>Import RSVP Data</h1>
-            <p class="subtitle">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
+            <div class="hero-header">
+                <div class="hero-copy">
+                    <div class="eyebrow">University of Utah</div>
+                    <h1>Import RSVP Data</h1>
+                    <p class="subtitle">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
+                </div>
+                <div class="top-actions">
+                    <a href="{% url 'checkin:dashboard' %}" class="back-link">Back to Dashboard</a>
+                </div>
+            </div>
 
             <form method="post" enctype="multipart/form-data" class="upload-form">
                 {% csrf_token %}
