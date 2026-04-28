@@ -50,8 +50,7 @@
 
         .panel,
         .title-panel,
-        .action-card,
-        .utility-card {
+        .action-card {
             background: var(--surface);
             border: 1px solid var(--line);
             border-radius: var(--radius-lg);
@@ -193,25 +192,7 @@
             background: #dfe7f2;
         }
 
-        .button-danger {
-            background: #b42318;
-            color: #ffffff;
-        }
-
-        .button-danger:hover:enabled {
-            background: #94180f;
-        }
-
-        .button-danger:disabled {
-            background: #d8dde8;
-            color: #78839a;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .panel-actions,
-        .utility-actions {
+        .panel-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -263,35 +244,6 @@
             margin-bottom: 14px;
         }
 
-        .utility-card {
-            margin-top: 22px;
-            padding: 18px 22px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 18px;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .inline-form {
-            margin: 0;
-        }
-
-        .fine-print {
-            margin-top: 12px;
-            font-size: 0.88rem;
-            color: #6d768a;
-        }
-
-        .utility-title {
-            margin: 0;
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--text-soft);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
         @media (max-width: 960px) {
             .main-actions,
             .secondary-actions {
@@ -304,10 +256,6 @@
 
             .panel {
                 text-align: left;
-            }
-
-            .utility-card {
-                align-items: flex-start;
             }
         }
     </style>
@@ -373,22 +321,6 @@
                         <a href="{% url 'checkin:export_attendance' %}" class="button-link button-secondary">Download Attendance</a>
                         <a href="{% url 'checkin:export_rsvp' %}" class="button-link button-secondary">Export RSVP List</a>
                     </div>
-                </div>
-            </section>
-
-            <section class="utility-card">
-                <p class="utility-title">Delete Entire RSVP List</p>
-                <div class="utility-actions">
-                    <form
-                        method="post"
-                        action="{% url 'checkin:delete_all_participants' %}"
-                        class="inline-form"
-                        onsubmit="return confirm('Delete the entire RSVP list? Export it first if you want a backup.');"
-                    >
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{% url 'checkin:dashboard' %}">
-                        <button type="submit" class="button-danger" {% if not has_participants %}disabled{% endif %}>Delete Entire List</button>
-                    </form>
                 </div>
             </section>
         </div>
