@@ -34,6 +34,15 @@
             margin-bottom: 10px;
         }
 
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
         .eyebrow {
             display: inline-block;
             margin-bottom: 12px;
@@ -46,47 +55,34 @@
         }
 
         .subtitle {
-            margin-bottom: 24px;
+            margin: 0;
             color: #4b5563;
         }
 
-        .hero-header {
+        .header-actions {
             display: flex;
             flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 20px;
-            margin-bottom: 12px;
+            gap: 10px;
         }
 
-        .hero-copy {
-            flex: 1 1 460px;
-            min-width: 0;
-        }
-
-        .top-actions {
-            display: flex;
-            justify-content: flex-end;
-            flex: 0 0 auto;
-        }
-
-        .back-link {
+        .button-link {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 180px;
-            padding: 12px 20px;
-            border-radius: 18px;
+            min-height: 46px;
+            padding: 0 18px;
+            border: none;
+            border-radius: 12px;
             text-decoration: none;
-            background: #d60000;
-            color: #ffffff;
-            font-size: 1rem;
+            font-size: 0.96rem;
             font-weight: 700;
-            box-shadow: 0 10px 24px rgba(214, 0, 0, 0.18);
+            cursor: pointer;
         }
 
-        .back-link:hover {
-            background: #bb0000;
+        .button-primary {
+            background: #cc0000;
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(214, 0, 0, 0.18);
         }
 
         .upload-form {
@@ -342,16 +338,16 @@
 <body>
     <div class="page">
         <div class="card">
-            <div class="hero-header">
-                <div class="hero-copy">
-                    <div class="eyebrow">University of Utah</div>
+            <header class="header">
+                <div>
+                    <span class="eyebrow">University of Utah</span>
                     <h1>Import RSVP Data</h1>
                     <p class="subtitle">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
                 </div>
-                <div class="top-actions">
-                    <a href="{% url 'checkin:dashboard' %}" class="back-link">Back to Dashboard</a>
+                <div class="header-actions">
+                    <a href="{% url 'checkin:dashboard' %}" class="button-link button-primary">Back to Dashboard</a>
                 </div>
-            </div>
+            </header>
 
             <form method="post" enctype="multipart/form-data" class="upload-form">
                 {% csrf_token %}

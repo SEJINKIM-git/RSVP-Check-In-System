@@ -2,6 +2,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 
+from checkin.forms import DEFAULT_GUEST_MAJORS, GuestCheckInForm
 from checkin.models import GuestParticipant, RegisteredParticipant
 from checkin.services.import_rsvp import import_rsvp_file
 
@@ -188,6 +189,35 @@ class AttendanceExportViewTests(TestCase):
         self.assertIn("2,Second Student,u2101,Physics,No,", content)
 
 
+class GuestCheckInFormTests(TestCase):
+    def test_guest_form_uses_uac_major_list(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Imported Student",
+            unid="u2999999",
+            major="Business",
+        )
+
+        form = GuestCheckInForm()
+
+        self.assertEqual(
+            list(form.fields["major"].widget.choices),
+            [("", "Select Major")] + [(major, major) for major in DEFAULT_GUEST_MAJORS],
+        )
+
+    def test_guest_form_maps_unlisted_major_to_other(self):
+        form = GuestCheckInForm(
+            data={
+                "name": "Walk In",
+                "unid": "u1234567",
+                "major": "Business",
+            }
+        )
+
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["major"], "Other")
+
+
 class ImportPageParticipantListTests(TestCase):
     def test_import_page_shows_registered_participants_in_submission_order(self):
         RegisteredParticipant.objects.create(
@@ -302,6 +332,7 @@ class ImportPageParticipantListTests(TestCase):
         self.assertContains(response, "Delete Entire RSVP List")
         self.assertContains(response, "/checkin/participants/delete-all/")
         self.assertNotContains(response, "<th class=\"actions-cell\">Delete</th>", html=False)
+        self.assertContains(response, "University of Utah")
         self.assertContains(response, "Back to Dashboard")
         self.assertContains(response, 'href="/checkin/"', html=False)
 

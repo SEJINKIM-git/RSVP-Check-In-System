@@ -9,14 +9,14 @@ UNID_PATTERN = re.compile(r"^u\d{7}$", re.IGNORECASE)
 
 DEFAULT_GUEST_MAJORS = [
     "Accounting",
-    "Business",
-    "Computer Science",
-    "Data Science",
-    "Economics",
-    "Engineering",
-    "Finance",
-    "Marketing",
-    "Mathematics",
+    "Communication",
+    "Computer Engineering",
+    "Electrical Engineering",
+    "Film & Media Arts",
+    "Games",
+    "Information Systems",
+    "Psychology",
+    "Urban Ecology",
     "Other",
 ]
 
@@ -24,24 +24,15 @@ DEFAULT_GUEST_MAJORS = [
 class GuestCheckInForm(forms.Form):
     name = forms.CharField(max_length=255)
     unid = forms.CharField(max_length=8)
-    major = forms.ChoiceField(choices=())
+    major = forms.CharField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        imported_majors = []
-        for major in RegisteredParticipant.objects.order_by("major").values_list("major", flat=True).distinct():
-            cleaned_major = (major or "").strip()
-            if cleaned_major and cleaned_major not in imported_majors:
-                imported_majors.append(cleaned_major)
-
-        major_options = imported_majors or list(DEFAULT_GUEST_MAJORS)
-        if "Other" not in major_options:
-            major_options.append("Other")
-
-        self.fields["major"].choices = [("", "Select Major")] + [
-            (major, major) for major in major_options
+        major_choices = [("", "Select Major")] + [
+            (major, major) for major in DEFAULT_GUEST_MAJORS
         ]
+        self.fields["major"].widget = forms.Select(choices=major_choices)
 
         self.fields["name"].widget.attrs.update({"placeholder": "Guest full name"})
         self.fields["unid"].widget.attrs.update({"placeholder": "u1234567"})
@@ -64,3 +55,9 @@ class GuestCheckInForm(forms.Form):
             raise forms.ValidationError("This guest UNID has already been checked in.")
 
         return normalized_unid
+
+    def clean_major(self):
+        selected_major = (self.cleaned_data["major"] or "").strip()
+        if selected_major in DEFAULT_GUEST_MAJORS:
+            return selected_major
+        return "Other"
