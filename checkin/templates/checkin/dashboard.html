@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University of Utah RSVP Check-In</title>
+    <style>
+        :root {
+            --uofu-crimson: #cc0000;
+            --text-main: #172033;
+            --text-soft: #5c667c;
+            --line: #dde3ef;
+            --surface: #ffffff;
+            --surface-soft: #f7f9fc;
+            --surface-accent: #fff6f6;
+            --shadow: 0 20px 50px rgba(20, 33, 61, 0.12);
+            --radius-lg: 26px;
+            --radius-md: 18px;
+            --radius-sm: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", system-ui, sans-serif;
+            background:
+                radial-gradient(circle at top, rgba(204, 0, 0, 0.08), transparent 30%),
+                linear-gradient(180deg, #fbfcff 0%, #eef3f9 100%);
+            color: var(--text-main);
+        }
+
+        .page {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 40px 20px 48px;
+        }
+
+        .shell {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(221, 227, 239, 0.9);
+            border-radius: 32px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+            padding: 28px;
+        }
+
+        .panel,
+        .title-panel,
+        .action-card,
+        .utility-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        .panel {
+            padding: 20px;
+        }
+
+        .panel h2,
+        .action-card h2,
+        .utility-card h2 {
+            margin: 0 0 8px;
+            font-size: 1.1rem;
+        }
+
+        .panel p,
+        .action-card p,
+        .utility-card p {
+            margin: 0;
+            color: var(--text-soft);
+            line-height: 1.55;
+        }
+
+        .title-panel {
+            max-width: 660px;
+            margin: 0 auto;
+            padding: 24px 24px 20px;
+            text-align: center;
+            background:
+                linear-gradient(180deg, rgba(204, 0, 0, 0.05), rgba(204, 0, 0, 0) 36%),
+                var(--surface);
+        }
+
+        .brand-title {
+            margin: 0;
+            color: var(--uofu-crimson);
+            font-family: "Industry", "Arial Black", "Inter", system-ui, sans-serif;
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .brand-subtitle {
+            margin: 12px 0 0;
+            font-size: clamp(1.05rem, 2vw, 1.35rem);
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #2a3245;
+            font-weight: 700;
+        }
+
+        .stats-card {
+            margin: 20px auto 0;
+            max-width: 338px;
+            padding: 16px;
+            border-radius: 22px;
+            background: var(--surface-soft);
+            border: 1px solid var(--line);
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 4px;
+        }
+
+        .stat-row + .stat-row {
+            border-top: 1px solid var(--line);
+        }
+
+        .stat-label {
+            font-size: 0.95rem;
+            color: var(--text-soft);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .panel-tag {
+            display: inline-block;
+            margin-bottom: 10px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--surface-accent);
+            color: var(--uofu-crimson);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .button-link,
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 0 18px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.98rem;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+
+        .button-link:hover,
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(20, 33, 61, 0.14);
+        }
+
+        .button-primary {
+            background: var(--uofu-crimson);
+            color: #ffffff;
+        }
+
+        .button-primary:hover {
+            background: #ad0000;
+        }
+
+        .button-secondary {
+            background: #eef2f8;
+            color: #23304a;
+        }
+
+        .button-secondary:hover {
+            background: #dfe7f2;
+        }
+
+        .button-danger {
+            background: #b42318;
+            color: #ffffff;
+        }
+
+        .button-danger:hover:enabled {
+            background: #94180f;
+        }
+
+        .button-danger:disabled {
+            background: #d8dde8;
+            color: #78839a;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .panel-actions,
+        .utility-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .main-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 22px;
+            margin-top: 28px;
+        }
+
+        .secondary-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 22px;
+            margin-top: 22px;
+        }
+
+        .action-card {
+            padding: 28px;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 249, 252, 0.95)),
+                var(--surface);
+        }
+
+        .action-card h2 {
+            font-size: 1.55rem;
+        }
+
+        .action-card .eyebrow {
+            display: inline-block;
+            margin-bottom: 14px;
+            color: var(--uofu-crimson);
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .action-card .eyebrow,
+        .panel .panel-tag {
+            display: inline-block;
+            margin-bottom: 14px;
+        }
+
+        .utility-card {
+            margin-top: 22px;
+            padding: 18px 22px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .inline-form {
+            margin: 0;
+        }
+
+        .fine-print {
+            margin-top: 12px;
+            font-size: 0.88rem;
+            color: #6d768a;
+        }
+
+        .utility-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-soft);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        @media (max-width: 960px) {
+            .main-actions,
+            .secondary-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .title-panel {
+                text-align: center;
+            }
+
+            .panel {
+                text-align: left;
+            }
+
+            .utility-card {
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="shell">
+            <section class="title-panel">
+                <h1 class="brand-title">University of Utah</h1>
+                <p class="brand-subtitle">RSVP Check-In System</p>
+
+                <div class="stats-card">
+                    <div class="stat-row">
+                        <span class="stat-label">Total RSVP</span>
+                        <span class="stat-value">{{ total_rsvp }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Checked In</span>
+                        <span class="stat-value">{{ checked_in_total }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Guest</span>
+                        <span class="stat-value">{{ guest_count }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="main-actions">
+                <article class="action-card">
+                    <div>
+                        <span class="eyebrow">Main Check-In</span>
+                        <h2>Registered Check-In</h2>
+                    </div>
+                    <div class="panel-actions">
+                        <a href="{% url 'checkin:registered_checkin' %}" class="button-link button-primary">Open Registered Check-In</a>
+                    </div>
+                </article>
+
+                <article class="action-card">
+                    <div>
+                        <span class="eyebrow">Walk-In Access</span>
+                        <h2>Guest Check-In</h2>
+                    </div>
+                    <div class="panel-actions">
+                        <a href="{% url 'checkin:guest_checkin' %}" class="button-link button-primary">Open Guest Check-In</a>
+                    </div>
+                </article>
+            </section>
+
+            <section class="secondary-actions">
+                <div class="panel">
+                    <span class="panel-tag">Import</span>
+                    <h2>Import RSVP List</h2>
+                    <div class="panel-actions">
+                        <a href="{% url 'checkin:import_rsvp' %}" class="button-link button-secondary">Upload CSV / Excel</a>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <span class="panel-tag">Export</span>
+                    <h2>Export Attendance</h2>
+                    <div class="panel-actions">
+                        <a href="{% url 'checkin:export_attendance' %}" class="button-link button-secondary">Download Attendance</a>
+                        <a href="{% url 'checkin:export_rsvp' %}" class="button-link button-secondary">Export RSVP List</a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="utility-card">
+                <p class="utility-title">Delete Entire RSVP List</p>
+                <div class="utility-actions">
+                    <form
+                        method="post"
+                        action="{% url 'checkin:delete_all_participants' %}"
+                        class="inline-form"
+                        onsubmit="return confirm('Delete the entire RSVP list? Export it first if you want a backup.');"
+                    >
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{% url 'checkin:dashboard' %}">
+                        <button type="submit" class="button-danger" {% if not has_participants %}disabled{% endif %}>Delete Entire List</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+</html>

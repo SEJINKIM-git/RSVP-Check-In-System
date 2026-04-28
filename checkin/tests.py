@@ -1,5 +1,6 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 
 from checkin.models import GuestParticipant, RegisteredParticipant
 from checkin.services.import_rsvp import import_rsvp_file
@@ -280,3 +281,126 @@ class ImportPageParticipantListTests(TestCase):
         self.assertContains(response, "Search by Name or UNID")
         self.assertContains(response, 'id="participant-search"', html=False)
         self.assertContains(response, "Type a name or UNID")
+
+    def test_toggle_checkin_redirects_to_safe_next_url_when_provided(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Redirect Student",
+            unid="u8002",
+            major="Accounting",
+        )
+
+        response = self.client.post(
+            f"/checkin/participants/{participant.id}/toggle-checkin/",
+            {"next": "/checkin/registered/"},
+        )
+
+        participant.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/checkin/registered/")
+        self.assertTrue(participant.checked_in)
+
+
+class DashboardAndCheckInFlowTests(TestCase):
+    def test_dashboard_shows_registered_checked_in_and_guest_counts(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Registered Student One",
+            unid="u9001",
+            major="Accounting",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=2,
+            name="Registered Student Two",
+            unid="u9002",
+            major="Finance",
+            checked_in=False,
+        )
+        GuestParticipant.objects.create(
+            name="Walk In Guest",
+            unid="u9003",
+            major="Other",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        response = self.client.get("/checkin/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_rsvp"], 2)
+        self.assertEqual(response.context["checked_in_total"], 2)
+        self.assertEqual(response.context["guest_count"], 1)
+        self.assertContains(response, "University of Utah")
+        self.assertContains(response, "Registered Check-In")
+        self.assertContains(response, "Guest Check-In")
+
+    def test_registered_checkin_page_lists_participants_in_submission_order(self):
+        RegisteredParticipant.objects.create(
+            submission_order=2,
+            name="Later Student",
+            unid="u9102",
+            major="Engineering",
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Earlier Student",
+            unid="u9101",
+            major="Business",
+        )
+
+        response = self.client.get("/checkin/registered/")
+
+        self.assertEqual(response.status_code, 200)
+        participants = list(response.context["participants"])
+        self.assertEqual(
+            [participant.name for participant in participants],
+            ["Earlier Student", "Later Student"],
+        )
+        self.assertContains(response, "Search by Name or UNID")
+
+    def test_guest_checkin_creates_guest_and_redirects_to_dashboard(self):
+        response = self.client.post(
+            "/checkin/guest/",
+            {
+                "name": "Guest Visitor",
+                "unid": "U7654321",
+                "major": "Other",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/checkin/")
+        self.assertEqual(GuestParticipant.objects.count(), 1)
+
+        guest = GuestParticipant.objects.get()
+        self.assertEqual(guest.name, "Guest Visitor")
+        self.assertEqual(guest.unid, "u7654321")
+        self.assertEqual(guest.major, "Other")
+        self.assertTrue(guest.checked_in)
+        self.assertIsNotNone(guest.checkin_time)
+
+    def test_guest_checkin_rejects_registered_unid(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Registered Student",
+            unid="u9999999",
+            major="Physics",
+        )
+
+        response = self.client.post(
+            "/checkin/guest/",
+            {
+                "name": "Duplicate Guest",
+                "unid": "u9999999",
+                "major": "Physics",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GuestParticipant.objects.count(), 0)
+        self.assertContains(
+            response,
+            "This UNID is already in the registered RSVP list. Use Registered Check-In instead.",
+        )
