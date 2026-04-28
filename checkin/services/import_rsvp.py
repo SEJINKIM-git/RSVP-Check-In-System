@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import re
 
 from django.db import transaction
@@ -8,10 +9,18 @@ from django.db.models import Max
 from checkin.models import RegisteredParticipant
 
 
+logger = logging.getLogger(__name__)
+
 REQUIRED_FIELDS = {
     "name": {"name", "full name"},
     "unid": {"unid", "uni", "student id", "university id"},
     "major": {"major", "program", "department"},
+}
+
+REQUIRED_FIELD_LABELS = {
+    "name": "Name",
+    "unid": "UNID",
+    "major": "Major",
 }
 
 UNID_PATTERN = re.compile(r"^u\d{7}$")
@@ -35,6 +44,10 @@ def _match_headers(header_row):
 
     missing_fields = [field for field in REQUIRED_FIELDS if field not in matched_headers]
     return matched_headers, missing_fields
+
+
+def _clean_detected_headers(header_row):
+    return [str(header).strip() for header in header_row if str(header or "").strip()]
 
 
 def _decode_uploaded_file(uploaded_file):
@@ -88,12 +101,24 @@ def import_rsvp_file(uploaded_file):
         summary["errors"].append("The CSV file is missing a header row.")
         return summary
 
+    detected_headers = _clean_detected_headers(reader.fieldnames)
+    logger.debug("Detected RSVP import headers: %s", detected_headers)
+
     matched_headers, missing_fields = _match_headers(reader.fieldnames)
     if missing_fields:
+        missing_labels = [REQUIRED_FIELD_LABELS[field] for field in missing_fields]
+        error_message = "Missing required column(s): " + ", ".join(missing_labels)
+        if detected_headers:
+            error_message += ". Detected column(s): " + ", ".join(detected_headers)
         summary["errors"].append(
-            "Missing required column(s): " + ", ".join(field.title() for field in missing_fields)
+            error_message
         )
         return summary
+
+    logger.debug(
+        "Matched RSVP import headers: %s",
+        {field: matched_headers[field] for field in REQUIRED_FIELDS},
+    )
 
     existing_unids = {
         (unid or "").strip().lower()

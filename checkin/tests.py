@@ -83,6 +83,38 @@ class RSVPImportServiceTests(TestCase):
         participant = RegisteredParticipant.objects.get()
         self.assertEqual(participant.unid, "u7654321")
 
+    def test_import_accepts_extra_columns_and_ignores_them(self):
+        csv_content = "\n".join(
+            [
+                "Timestamp,Affiliation,Full Name,Student ID,Dietary Restrictions,Department",
+                "2026-04-28 09:00,Guest,Alice Kim,U1234567,None,Computer Science",
+                "2026-04-28 09:01,Guest,Brian Lee,u2345678,Vegetarian,Economics",
+            ]
+        )
+
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            csv_content.encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 2)
+        self.assertEqual(summary["skipped_count"], 0)
+        self.assertEqual(summary["errors"], [])
+        self.assertEqual(
+            list(
+                RegisteredParticipant.objects.order_by("submission_order").values_list(
+                    "name", "unid", "major"
+                )
+            ),
+            [
+                ("Alice Kim", "u1234567", "Computer Science"),
+                ("Brian Lee", "u2345678", "Economics"),
+            ],
+        )
+
     def test_reports_missing_required_headers(self):
         uploaded_file = SimpleUploadedFile(
             "rsvp.csv",
@@ -94,6 +126,9 @@ class RSVPImportServiceTests(TestCase):
 
         self.assertEqual(summary["imported_count"], 0)
         self.assertIn("Missing required column(s)", summary["errors"][0])
+        self.assertIn("UNID", summary["errors"][0])
+        self.assertIn("Major", summary["errors"][0])
+        self.assertIn("Detected column(s): Name, Email", summary["errors"][0])
 
 
 class AttendanceExportViewTests(TestCase):
