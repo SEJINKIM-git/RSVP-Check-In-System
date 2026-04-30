@@ -1,454 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Import RSVP Data</title>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Import RSVP Data | UAC RSVP</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <style>
         body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
-            color: #1f2937;
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9f9;
         }
 
-        .page {
-            max-width: 900px;
-            margin: 48px auto;
-            padding: 0 20px;
+        .font-lexend {
+            font-family: 'Lexend', sans-serif;
         }
 
-        .card {
-            background: #ffffff;
-            border: 1px solid #dbe3ee;
-            border-radius: 14px;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-            padding: 28px;
-        }
-
-        h1, h2, h3 {
-            margin-top: 0;
-        }
-
-        h1 {
-            font-size: 2.25rem;
-            margin-bottom: 10px;
-        }
-
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 18px;
-            align-items: flex-start;
-            margin-bottom: 24px;
-        }
-
-        .eyebrow {
-            display: inline-block;
-            margin-bottom: 12px;
-            color: #cc0000;
-            font-family: "Industry", "Arial Black", Arial, sans-serif;
-            font-size: 0.9rem;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-        }
-
-        .subtitle {
-            margin: 0;
-            color: #4b5563;
-        }
-
-        .header-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .button-link {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 46px;
-            padding: 0 18px;
-            border: none;
-            border-radius: 12px;
-            text-decoration: none;
-            font-size: 0.96rem;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .button-primary {
-            background: #cc0000;
-            color: #ffffff;
-            box-shadow: 0 10px 24px rgba(214, 0, 0, 0.18);
-        }
-
-        .upload-form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            margin-bottom: 18px;
-        }
-
-        .upload-label {
-            font-weight: 600;
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
         }
 
         input[type="file"] {
-            padding: 10px;
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
+            min-height: 48px;
+            border: 0;
+            border-radius: 0.75rem;
+            background: #f3f3f3;
+            color: #1a1c1c;
+            font-size: 16px;
         }
 
-        button {
-            border: none;
-            border-radius: 10px;
-            background: #2563eb;
-            color: #ffffff;
-            padding: 11px 18px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #1d4ed8;
-        }
-
-        .hint {
-            margin: 0;
-            font-size: 0.95rem;
-            color: #6b7280;
-        }
-
-        .actions-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .section-header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .secondary-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            border-radius: 10px;
-            background: #e2e8f0;
-            color: #1e293b;
-            padding: 11px 18px;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .secondary-button:hover {
-            background: #cbd5e1;
-        }
-
-        .search-row {
-            display: block;
-            margin-top: 16px;
-            margin-bottom: 12px;
-        }
-
-        .search-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .search-field label {
-            font-size: 0.92rem;
-            font-weight: 600;
-            color: #334155;
-        }
-
-        .search-field input {
-            padding: 11px 14px;
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            font-size: 0.98rem;
-            color: #1f2937;
-        }
-
-        .search-field input:focus {
-            outline: 2px solid #bfdbfe;
-            outline-offset: 1px;
-            border-color: #60a5fa;
-        }
-
-        .search-hint {
-            margin: 0 0 8px;
-            font-size: 0.92rem;
-            color: #64748b;
-        }
-
-        .results {
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .participants-section {
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 14px;
-            margin-bottom: 20px;
-        }
-
-        .summary-box {
-            padding: 16px;
-            border-radius: 12px;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-        }
-
-        .summary-label {
-            display: block;
-            font-size: 0.9rem;
-            color: #475569;
-            margin-bottom: 6px;
-        }
-
-        .summary-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
-
-        .list-box {
-            margin-top: 16px;
-            padding: 18px;
-            border-radius: 12px;
-        }
-
-        .duplicate-box {
-            background: #fff7ed;
-            border: 1px solid #fdba74;
-        }
-
-        .error-box {
-            background: #fef2f2;
-            border: 1px solid #fca5a5;
-        }
-
-        ul {
-            margin-bottom: 0;
-        }
-
-        .table-wrapper {
-            margin-top: 16px;
-            overflow-x: auto;
-            border: 1px solid #dbe3ee;
-            border-radius: 12px;
-            background: #ffffff;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th,
-        td {
-            padding: 14px 16px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        th {
-            background: #f8fafc;
-            font-size: 0.95rem;
-        }
-
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        .checkin-cell {
-            width: 110px;
-        }
-
-        .checkbox-form {
-            margin: 0;
-        }
-
-        .checkbox-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            padding: 0;
-            border-radius: 6px;
-            border: 1px solid #94a3b8;
-            background: #ffffff;
-            color: #2563eb;
-            font-size: 0.95rem;
-            line-height: 1;
-        }
-
-        .checkbox-button.checked {
-            background: #dbeafe;
-            border-color: #60a5fa;
-        }
-
-        .danger-button {
-            background: #dc2626;
-        }
-
-        .danger-button:hover {
-            background: #b91c1c;
-        }
-
-        .empty-state {
-            margin: 16px 0 0;
-            color: #6b7280;
-        }
-
-        .search-empty {
-            display: none;
-            margin: 16px 0 0;
-            padding: 14px 16px;
-            border: 1px solid #dbe3ee;
-            border-radius: 12px;
-            background: #f8fafc;
-            color: #475569;
+        input[type="file"]:focus,
+        #participant-search:focus {
+            border: 0;
+            box-shadow: 0 0 0 2px #9e0000;
         }
     </style>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        secondary: "#595f66",
+                        primary: "#9e0000",
+                        "primary-container": "#cc0000",
+                        background: "#f9f9f9",
+                        "on-background": "#1a1c1c",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-low": "#f3f3f3",
+                        "primary-fixed-dim": "#ffb4a8"
+                    },
+                    spacing: {
+                        xl: "48px",
+                        sm: "8px",
+                        md: "16px",
+                        margin: "32px",
+                        gutter: "24px",
+                        lg: "24px"
+                    },
+                    fontFamily: {
+                        "display-lg": ["Lexend"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    fontSize: {
+                        "display-lg": ["48px", { lineHeight: "1.1", letterSpacing: "0", fontWeight: "700" }],
+                        "label-md": ["14px", { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "body-md": ["16px", { lineHeight: "1.6", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="page">
-        <div class="card">
-            <header class="header">
-                <div>
-                    <span class="eyebrow">University of Utah</span>
-                    <h1>Import RSVP Data</h1>
-                    <p class="subtitle">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
-                </div>
-                <div class="header-actions">
-                    <a href="{% url 'checkin:dashboard' %}" class="button-link button-primary">Back to Dashboard</a>
-                </div>
-            </header>
+<body class="bg-background text-on-background font-body-md antialiased">
+    <header class="bg-white dark:bg-slate-900 flex justify-between items-center px-6 h-16 w-full sticky top-0 z-40 shadow-sm border-b border-gray-200 dark:border-gray-800 font-lexend antialiased">
+        <div class="flex items-center gap-4">
+            <a class="font-lexend text-[32px] font-black tracking-tight text-red-700 dark:text-red-500" href="{% url 'checkin:dashboard' %}">UAC RSVP</a>
+        </div>
+    </header>
 
-            <form method="post" enctype="multipart/form-data" class="upload-form">
-                {% csrf_token %}
-                <label for="rsvp_file" class="upload-label">RSVP CSV File</label>
-                <input id="rsvp_file" type="file" name="rsvp_file" accept=".csv" required>
-                <button type="submit">Import</button>
-            </form>
+    <div class="flex">
+        <aside class="hidden lg:flex flex-col gap-1 bg-gray-50 dark:bg-slate-950 h-[calc(100vh-64px)] w-64 border-r border-gray-200 dark:border-gray-800 fixed left-0 top-16 p-4 pt-7 font-lexend text-sm">
+            <div class="mb-6 px-6">
+                <p class="font-bold text-red-700">Check-In System</p>
+                <p class="text-xs text-gray-500">University of Utah</p>
+            </div>
+            <nav class="flex flex-col gap-1">
+                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:dashboard' %}">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span>Dashboard</span>
+                </a>
+                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:registered_checkin' %}">
+                    <span class="material-symbols-outlined">assignment_turned_in</span>
+                    <span>Check-in</span>
+                </a>
+                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:guest_checkin' %}">
+                    <span class="material-symbols-outlined">group</span>
+                    <span>Guest Regs.</span>
+                </a>
+                <a class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-semibold rounded-lg mx-2 px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:import_rsvp' %}">
+                    <span class="material-symbols-outlined">import_export</span>
+                    <span>Data Tools</span>
+                </a>
+            </nav>
+        </aside>
 
-            <p class="hint">Required columns: Name, UNID, Major</p>
-
-            <div class="actions-row">
-                <a href="{% url 'checkin:export_rsvp' %}" class="secondary-button">Export RSVP List (CSV)</a>
-                <a href="{% url 'checkin:export_attendance' %}" class="secondary-button">Export Final Attendance (CSV)</a>
+        <main class="flex-1 lg:ml-64 p-margin lg:p-xl space-y-xl max-w-7xl">
+            <div>
+                <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Import RSVP Data</h1>
             </div>
 
-            {% if summary %}
-                <div class="results">
-                    <h2>Import Results</h2>
-
-                    <div class="summary-grid">
-                        <div class="summary-box">
-                            <span class="summary-label">Imported Rows</span>
-                            <span class="summary-value">{{ summary.imported_count }}</span>
-                        </div>
-                        <div class="summary-box">
-                            <span class="summary-label">Skipped Rows</span>
-                            <span class="summary-value">{{ summary.skipped_count }}</span>
-                        </div>
-                    </div>
-
-                    {% if summary.duplicate_unids %}
-                        <div class="list-box duplicate-box">
-                            <h3>Duplicate UNIDs</h3>
-                            <ul>
-                                {% for unid in summary.duplicate_unids %}
-                                    <li>{{ unid }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
-
-                    {% if summary.errors %}
-                        <div class="list-box error-box">
-                            <h3>Errors</h3>
-                            <ul>
-                                {% for error in summary.errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
+            <div class="flex justify-end">
+                <div class="flex flex-wrap justify-end gap-md">
+                    <a class="px-lg py-sm border-2 border-primary text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95" href="{% url 'checkin:export_rsvp' %}" download>
+                        Export RSVP List
+                    </a>
+                    <a class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95" href="{% url 'checkin:dashboard' %}">
+                        Back to Dashboard
+                    </a>
                 </div>
+            </div>
+
+            <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] gap-gutter">
+                <article class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+                    <div class="p-lg border-b border-gray-100">
+                        <h2 class="font-lexend text-2xl font-bold text-on-surface">Upload RSVP File</h2>
+                        <p class="mt-2 text-secondary">Upload the RSVP CSV file from Google Forms to register participants in submission order.</p>
+                    </div>
+                    <div class="p-lg">
+                        <form method="post" enctype="multipart/form-data" class="grid gap-md">
+                            {% csrf_token %}
+                            <div>
+                                <label class="mb-sm block font-label-md uppercase text-secondary" for="rsvp_file">RSVP CSV File</label>
+                                <input id="rsvp_file" class="w-full px-md py-sm" type="file" name="rsvp_file" accept=".csv" required>
+                                <p class="mt-sm text-sm text-secondary">Required columns: Name, UNID, Major</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
+                                    Import
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </article>
+
+                <aside class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+                    <div class="p-lg border-b border-gray-100">
+                        <h2 class="font-lexend text-2xl font-bold text-on-surface">Data Exports</h2>
+                        <p class="mt-2 text-secondary">Download current RSVP or final attendance reports.</p>
+                    </div>
+                    <div class="p-lg grid gap-md">
+                        <a class="flex items-center justify-between rounded-xl bg-surface-container-low p-md font-lexend font-semibold text-secondary transition-colors hover:bg-gray-100" href="{% url 'checkin:export_rsvp' %}" download>
+                            Export RSVP List
+                            <span class="material-symbols-outlined">download</span>
+                        </a>
+                        <a class="flex items-center justify-between rounded-xl bg-surface-container-low p-md font-lexend font-semibold text-secondary transition-colors hover:bg-gray-100" href="{% url 'checkin:export_attendance' %}" download>
+                            Export Final Attendance
+                            <span class="material-symbols-outlined">download</span>
+                        </a>
+                    </div>
+                </aside>
+            </section>
+
+            {% if summary %}
+                <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+                    <div class="p-lg border-b border-gray-100">
+                        <h2 class="font-lexend text-2xl font-bold text-on-surface">Import Results</h2>
+                    </div>
+                    <div class="p-lg space-y-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                            <div class="rounded-xl bg-surface-container-low p-lg">
+                                <p class="font-label-md uppercase text-secondary">Imported Rows</p>
+                                <p class="mt-sm text-[48px] leading-none font-black text-on-surface">{{ summary.imported_count }}</p>
+                            </div>
+                            <div class="rounded-xl bg-surface-container-low p-lg">
+                                <p class="font-label-md uppercase text-secondary">Skipped Rows</p>
+                                <p class="mt-sm text-[48px] leading-none font-black text-primary">{{ summary.skipped_count }}</p>
+                            </div>
+                        </div>
+
+                        {% if summary.duplicate_unids %}
+                            <div class="rounded-xl border border-orange-200 bg-orange-50 p-lg">
+                                <h3 class="font-lexend text-xl font-bold text-orange-900">Duplicate UNIDs</h3>
+                                <ul class="mt-md list-disc space-y-sm pl-lg text-orange-800">
+                                    {% for unid in summary.duplicate_unids %}
+                                        <li>{{ unid }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+
+                        {% if summary.errors %}
+                            <div class="rounded-xl border border-red-200 bg-red-50 p-lg">
+                                <h3 class="font-lexend text-xl font-bold text-red-900">Errors</h3>
+                                <ul class="mt-md list-disc space-y-sm pl-lg text-red-800">
+                                    {% for error in summary.errors %}
+                                        <li>{{ error }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                </section>
             {% endif %}
 
-            <div class="participants-section">
-                <div class="section-header">
-                    <h2>Imported RSVP Participants</h2>
+            <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+                <div class="p-lg border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                    <div>
+                        <h2 class="font-lexend text-2xl font-bold text-on-surface">Imported RSVP Participants</h2>
+                        <p class="mt-2 text-secondary">Search, verify, and manage imported attendees.</p>
+                    </div>
                     {% if participants %}
-                        <form method="post" action="{% url 'checkin:delete_all_participants' %}" class="checkbox-form" onsubmit="return confirm('Delete the entire RSVP list? Export it first if you want a backup.');">
+                        <form method="post" action="{% url 'checkin:delete_all_participants' %}" onsubmit="return confirm('Delete the entire RSVP list? Export it first if you want a backup.');">
                             {% csrf_token %}
-                            <button type="submit" class="danger-button">Delete Entire RSVP List</button>
+                            <button type="submit" class="px-lg py-sm bg-red-700 text-white font-lexend font-semibold rounded-xl hover:bg-red-800 shadow-md transition-all active:scale-95">
+                                Delete Entire RSVP List
+                            </button>
                         </form>
                     {% endif %}
                 </div>
 
                 {% if participants %}
-                    <div class="search-row">
-                        <div class="search-field">
-                            <label for="participant-search">Search by Name or UNID</label>
-                            <input id="participant-search" type="text" placeholder="Type a name or UNID">
+                    <div class="p-lg border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-md">
+                        <div class="relative w-full md:w-96">
+                            <span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-secondary">search</span>
+                            <input id="participant-search" class="w-full rounded-xl border-0 bg-surface-container-low py-sm pl-xl pr-md text-body-md focus:ring-2 focus:ring-primary" type="text" placeholder="Search by name or UNID">
                         </div>
                     </div>
-                    <p class="search-hint">The list updates as you type and matches either field.</p>
-                    <div class="table-wrapper">
-                        <table id="participants-table">
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Name</th>
-                                    <th>UNID</th>
-                                    <th>Major</th>
-                                    <th class="checkin-cell">Check-in</th>
+                                <tr class="bg-surface-container-low text-secondary font-label-md">
+                                    <th class="px-lg py-md">#</th>
+                                    <th class="px-lg py-md">Name</th>
+                                    <th class="px-lg py-md">UNID</th>
+                                    <th class="px-lg py-md">Major</th>
+                                    <th class="px-lg py-md">Check-In</th>
+                                    <th class="px-lg py-md">Delete</th>
                                 </tr>
                             </thead>
-                            <tbody id="participants-table-body">
+                            <tbody id="participants-table-body" class="divide-y divide-gray-100">
                                 {% for participant in participants %}
-                                    <tr data-name="{{ participant.name|lower }}" data-unid="{{ participant.unid|lower }}">
-                                        <td>{{ participant.submission_order }}</td>
-                                        <td>{{ participant.name }}</td>
-                                        <td>{{ participant.unid }}</td>
-                                        <td>{{ participant.major }}</td>
-                                        <td class="checkin-cell">
-                                            <form method="post" action="{% url 'checkin:toggle_checkin' participant.id %}" class="checkbox-form">
+                                    <tr class="hover:bg-gray-50 transition-colors" data-name="{{ participant.name|lower }}" data-unid="{{ participant.unid|lower }}">
+                                        <td class="px-lg py-md text-secondary">{{ participant.submission_order }}</td>
+                                        <td class="px-lg py-md">
+                                            <div class="flex items-center gap-md">
+                                                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold">{{ participant.name|slice:":1"|upper }}</div>
+                                                <span class="text-[16px] font-semibold text-on-surface">{{ participant.name }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-lg py-md text-[16px] font-mono text-secondary">{{ participant.unid }}</td>
+                                        <td class="px-lg py-md text-[16px] text-secondary">{{ participant.major }}</td>
+                                        <td class="px-lg py-md">
+                                            <form method="post" action="{% url 'checkin:toggle_checkin' participant.id %}">
                                                 {% csrf_token %}
+                                                <input type="hidden" name="next" value="{% url 'checkin:import_rsvp' %}">
                                                 <button
                                                     type="submit"
-                                                    class="checkbox-button{% if participant.checked_in %} checked{% endif %}"
+                                                    class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-sm text-primary transition-colors hover:bg-red-50 {% if participant.checked_in %}border-primary bg-red-50{% endif %}"
                                                     aria-label="Toggle check-in for {{ participant.name }}"
                                                     title="Toggle check-in"
                                                 >
-                                                    {% if participant.checked_in %}✓{% endif %}
+                                                    {% if participant.checked_in %}
+                                                        <span class="material-symbols-outlined text-[20px]">check</span>
+                                                    {% else %}
+                                                        <span class="material-symbols-outlined text-[20px] text-secondary">check_box_outline_blank</span>
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                        </td>
+                                        <td class="px-lg py-md">
+                                            <form method="post" action="{% url 'checkin:delete_participant' participant.id %}" onsubmit="return confirm('Delete this participant?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="inline-flex h-8 items-center justify-center rounded-lg px-sm text-red-700 transition-colors hover:bg-red-50" aria-label="Delete {{ participant.name }}">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
                                                 </button>
                                             </form>
                                         </td>
@@ -457,13 +286,17 @@
                             </tbody>
                         </table>
                     </div>
-                    <p id="search-empty-state" class="search-empty">No participants match your current search.</p>
+
+                    <p id="search-empty-state" class="hidden m-lg rounded-xl bg-surface-container-low p-md text-secondary">No participants match your current search.</p>
                 {% else %}
-                    <p class="empty-state">No RSVP participants have been imported yet.</p>
+                    <div class="p-xl">
+                        <p class="rounded-xl bg-surface-container-low p-lg text-secondary">No RSVP participants have been imported yet.</p>
+                    </div>
                 {% endif %}
-            </div>
-        </div>
+            </section>
+        </main>
     </div>
+
     <script>
         const participantSearchInput = document.getElementById("participant-search");
         const participantRows = Array.from(document.querySelectorAll("#participants-table-body tr"));
@@ -488,7 +321,7 @@
                 }
             });
 
-            searchEmptyState.style.display = visibleCount === 0 ? "block" : "none";
+            searchEmptyState.classList.toggle("hidden", visibleCount !== 0);
         }
 
         if (participantSearchInput) {

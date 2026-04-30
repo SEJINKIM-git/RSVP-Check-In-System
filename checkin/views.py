@@ -30,11 +30,16 @@ def dashboard_view(request):
     registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
     guest_count = GuestParticipant.objects.count()
     guest_checked_in = GuestParticipant.objects.filter(checked_in=True).count()
+    checked_in_total = registered_checked_in + guest_checked_in
+    total_attendees = total_rsvp + guest_count
+    checkin_progress = round((checked_in_total / total_attendees) * 100) if total_attendees else 0
 
     context = {
         "total_rsvp": total_rsvp,
-        "checked_in_total": registered_checked_in + guest_checked_in,
+        "checked_in_total": checked_in_total,
         "guest_count": guest_count,
+        "total_attendees": total_attendees,
+        "checkin_progress": checkin_progress,
         "has_participants": total_rsvp > 0,
     }
     return render(request, "checkin/dashboard.html", context)
@@ -137,3 +142,11 @@ def delete_all_participants(request):
 
     RegisteredParticipant.objects.all().delete()
     return _redirect_to_next(request, "checkin:import_rsvp")
+
+
+def delete_all_guests(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    GuestParticipant.objects.all().delete()
+    return redirect("checkin:guest_checkin")

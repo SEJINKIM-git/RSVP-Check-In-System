@@ -1,329 +1,307 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>University of Utah RSVP Check-In</title>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Utah RSVP - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        outline: "#926e69",
+                        "secondary-container": "#dde3ec",
+                        primary: "#9e0000",
+                        tertiary: "#4b4c4e",
+                        "on-primary-fixed": "#410000",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#c00000",
+                        "inverse-primary": "#ffb4a8",
+                        "on-tertiary-container": "#e2e1e4",
+                        "on-tertiary-fixed-variant": "#464749",
+                        "outline-variant": "#e8bdb6",
+                        surface: "#f9f9f9",
+                        "on-error": "#ffffff",
+                        background: "#f9f9f9",
+                        "on-background": "#1a1c1c",
+                        "inverse-surface": "#2f3131",
+                        "on-primary-container": "#ffdad4",
+                        "tertiary-fixed": "#e3e2e4",
+                        "on-secondary-fixed-variant": "#41474e",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-surface-variant": "#5e3f3a",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed-dim": "#c1c7cf",
+                        secondary: "#595f66",
+                        "primary-fixed": "#ffdad4",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#c6c6c8",
+                        "on-primary-fixed-variant": "#930000",
+                        "tertiary-container": "#636466",
+                        "on-tertiary-fixed": "#1a1c1d",
+                        "surface-container": "#eeeeee",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#dde3ec",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-high": "#e8e8e8",
+                        "on-surface": "#1a1c1c",
+                        "surface-bright": "#f9f9f9",
+                        "primary-container": "#cc0000",
+                        "on-primary": "#ffffff",
+                        error: "#ba1a1a",
+                        "inverse-on-surface": "#f1f1f1",
+                        "surface-dim": "#dadada",
+                        "primary-fixed-dim": "#ffb4a8",
+                        "on-secondary-fixed": "#161c22",
+                        "on-secondary-container": "#5f656c",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f3f3f3"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        full: "9999px"
+                    },
+                    spacing: {
+                        margin: "32px",
+                        md: "16px",
+                        xl: "48px",
+                        sm: "8px",
+                        lg: "24px",
+                        gutter: "24px",
+                        unit: "4px",
+                        xs: "4px",
+                        "container-max": "1280px"
+                    },
+                    fontFamily: {
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Lexend"],
+                        "headline-sm": ["Lexend"],
+                        "label-md": ["Inter"],
+                        "display-xl": ["Lexend"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg": ["Lexend"],
+                        "display-lg": ["Lexend"]
+                    },
+                    fontSize: {
+                        "body-sm": ["14px", { lineHeight: "1.5", fontWeight: "400" }],
+                        "headline-md": ["24px", { lineHeight: "1.3", fontWeight: "600" }],
+                        "headline-sm": ["20px", { lineHeight: "1.3", fontWeight: "600" }],
+                        "label-md": ["14px", { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "body-md": ["16px", { lineHeight: "1.6", fontWeight: "400" }],
+                        "body-lg": ["18px", { lineHeight: "1.6", fontWeight: "400" }],
+                        "label-sm": ["12px", { lineHeight: "1", fontWeight: "500" }],
+                        "headline-lg": ["32px", { lineHeight: "1.2", fontWeight: "700" }],
+                        "display-lg": ["48px", { lineHeight: "1.1", letterSpacing: "0", fontWeight: "700" }]
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --uofu-crimson: #cc0000;
-            --text-main: #172033;
-            --text-soft: #5c667c;
-            --line: #dde3ef;
-            --surface: #ffffff;
-            --surface-soft: #f7f9fc;
-            --surface-accent: #fff6f6;
-            --shadow: 0 20px 50px rgba(20, 33, 61, 0.12);
-            --radius-lg: 26px;
-            --radius-md: 18px;
-            --radius-sm: 12px;
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
         }
 
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Inter", system-ui, sans-serif;
-            background:
-                radial-gradient(circle at top, rgba(204, 0, 0, 0.08), transparent 30%),
-                linear-gradient(180deg, #fbfcff 0%, #eef3f9 100%);
-            color: var(--text-main);
-        }
-
-        .page {
-            max-width: 1180px;
-            margin: 0 auto;
-            padding: 40px 20px 48px;
-        }
-
-        .shell {
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(221, 227, 239, 0.9);
-            border-radius: 32px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(10px);
-            padding: 28px;
-        }
-
-        .panel,
-        .title-panel,
-        .action-card {
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: var(--radius-lg);
-            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
-        }
-
-        .panel {
-            padding: 20px;
-        }
-
-        .panel h2,
-        .action-card h2,
-        .utility-card h2 {
-            margin: 0 0 8px;
-            font-size: 1.1rem;
-        }
-
-        .panel p,
-        .action-card p,
-        .utility-card p {
-            margin: 0;
-            color: var(--text-soft);
-            line-height: 1.55;
-        }
-
-        .title-panel {
-            max-width: 660px;
-            margin: 0 auto;
-            padding: 24px 24px 20px;
-            text-align: center;
-            background:
-                linear-gradient(180deg, rgba(204, 0, 0, 0.05), rgba(204, 0, 0, 0) 36%),
-                var(--surface);
-        }
-
-        .brand-title {
-            margin: 0;
-            color: var(--uofu-crimson);
-            font-family: "Industry", "Arial Black", "Inter", system-ui, sans-serif;
-            font-size: clamp(2rem, 4vw, 3rem);
-            line-height: 1;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
-        .brand-subtitle {
-            margin: 12px 0 0;
-            font-size: clamp(1.05rem, 2vw, 1.35rem);
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            color: #2a3245;
-            font-weight: 700;
-        }
-
-        .stats-card {
-            margin: 20px auto 0;
-            max-width: 338px;
-            padding: 16px;
-            border-radius: 22px;
-            background: var(--surface-soft);
-            border: 1px solid var(--line);
-        }
-
-        .stat-row {
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 14px;
-            padding: 12px 4px;
-        }
-
-        .stat-row + .stat-row {
-            border-top: 1px solid var(--line);
-        }
-
-        .stat-label {
-            font-size: 0.95rem;
-            color: var(--text-soft);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            line-height: 1;
-        }
-
-        .panel-tag {
-            display: inline-block;
-            margin-bottom: 10px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: var(--surface-accent);
-            color: var(--uofu-crimson);
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .button-link,
-        button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 48px;
-            padding: 0 18px;
-            border: none;
-            border-radius: var(--radius-sm);
-            font-size: 0.98rem;
-            font-weight: 700;
-            text-decoration: none;
-            cursor: pointer;
-            transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-        }
-
-        .button-link:hover,
-        button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 22px rgba(20, 33, 61, 0.14);
-        }
-
-        .button-primary {
-            background: var(--uofu-crimson);
-            color: #ffffff;
-        }
-
-        .button-primary:hover {
-            background: #ad0000;
-        }
-
-        .button-secondary {
-            background: #eef2f8;
-            color: #23304a;
-        }
-
-        .button-secondary:hover {
-            background: #dfe7f2;
-        }
-
-        .panel-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .main-actions {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 22px;
-            margin-top: 28px;
-        }
-
-        .secondary-actions {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 22px;
-            margin-top: 22px;
-        }
-
-        .action-card {
-            padding: 28px;
-            min-height: 240px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 249, 252, 0.95)),
-                var(--surface);
-        }
-
-        .action-card h2 {
-            font-size: 1.55rem;
-        }
-
-        .action-card .eyebrow {
-            display: inline-block;
-            margin-bottom: 14px;
-            color: var(--uofu-crimson);
-            font-size: 0.82rem;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-        }
-
-        .action-card .eyebrow,
-        .panel .panel-tag {
-            display: inline-block;
-            margin-bottom: 14px;
-        }
-
-        @media (max-width: 960px) {
-            .main-actions,
-            .secondary-actions {
-                grid-template-columns: 1fr;
-            }
-
-            .title-panel {
-                text-align: center;
-            }
-
-            .panel {
-                text-align: left;
-            }
+        .shadow-ambient {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
         }
     </style>
 </head>
-<body>
-    <div class="page">
-        <div class="shell">
-            <section class="title-panel">
-                <h1 class="brand-title">University of Utah</h1>
-                <p class="brand-subtitle">RSVP Check-In System</p>
-
-                <div class="stats-card">
-                    <div class="stat-row">
-                        <span class="stat-label">Total RSVP</span>
-                        <span class="stat-value">{{ total_rsvp }}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Checked In</span>
-                        <span class="stat-value">{{ checked_in_total }}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Guest</span>
-                        <span class="stat-value">{{ guest_count }}</span>
-                    </div>
-                </div>
-            </section>
-
-            <section class="main-actions">
-                <article class="action-card">
-                    <div>
-                        <span class="eyebrow">Main Check-In</span>
-                        <h2>Registered Check-In</h2>
-                    </div>
-                    <div class="panel-actions">
-                        <a href="{% url 'checkin:registered_checkin' %}" class="button-link button-primary">Open Registered Check-In</a>
-                    </div>
-                </article>
-
-                <article class="action-card">
-                    <div>
-                        <span class="eyebrow">Walk-In Access</span>
-                        <h2>Guest Check-In</h2>
-                    </div>
-                    <div class="panel-actions">
-                        <a href="{% url 'checkin:guest_checkin' %}" class="button-link button-primary">Open Guest Check-In</a>
-                    </div>
-                </article>
-            </section>
-
-            <section class="secondary-actions">
-                <div class="panel">
-                    <span class="panel-tag">Import</span>
-                    <h2>Import RSVP List</h2>
-                    <div class="panel-actions">
-                        <a href="{% url 'checkin:import_rsvp' %}" class="button-link button-secondary">Upload CSV / Excel</a>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <span class="panel-tag">Export</span>
-                    <h2>Export Attendance</h2>
-                    <div class="panel-actions">
-                        <a href="{% url 'checkin:export_attendance' %}" class="button-link button-secondary">Download Attendance</a>
-                        <a href="{% url 'checkin:export_rsvp' %}" class="button-link button-secondary">Export RSVP List</a>
-                    </div>
-                </div>
-            </section>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden">
+    <header class="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 flex justify-between items-center w-full px-6 h-16 sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <a class="font-headline-lg text-headline-lg font-black tracking-tight text-red-700 dark:text-red-500 font-['Lexend']" href="{% url 'checkin:dashboard' %}">UAC RSVP</a>
         </div>
+    </header>
+
+    <div class="flex min-h-[calc(100vh-64px)]">
+        <aside class="hidden md:flex flex-col sticky left-0 top-16 h-[calc(100vh-64px)] w-64 p-4 gap-2 bg-gray-50 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 font-['Lexend'] text-sm">
+            <div class="mb-6 px-4">
+                <p class="font-bold text-red-700">Check-In System</p>
+                <p class="text-xs text-gray-500">University of Utah</p>
+            </div>
+            <nav class="flex-grow space-y-1">
+                <a class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-semibold rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:dashboard' %}">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span>Dashboard</span>
+                </a>
+                <a class="text-gray-600 dark:text-gray-400 px-4 py-3 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:registered_checkin' %}">
+                    <span class="material-symbols-outlined">check_box</span>
+                    <span>Check-in</span>
+                </a>
+                <a class="text-gray-600 dark:text-gray-400 px-4 py-3 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:guest_checkin' %}">
+                    <span class="material-symbols-outlined">group</span>
+                    <span>Guest Regs.</span>
+                </a>
+                <a class="text-gray-600 dark:text-gray-400 px-4 py-3 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:import_rsvp' %}">
+                    <span class="material-symbols-outlined">import_export</span>
+                    <span>Data Tools</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="flex-grow p-gutter md:p-xl max-w-container-max mx-auto w-full">
+            <section class="mb-xl">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-lg">
+                    <div>
+                        <h1 class="font-['Lexend'] font-black text-4xl md:text-6xl lg:text-7xl text-on-background whitespace-nowrap">Event Check-In Dashboard</h1>
+                    </div>
+                </div>
+            </section>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-lg mb-xl">
+                <div class="md:col-span-2 bg-white rounded-[1.5rem] p-lg shadow-ambient border border-[#E5E5E5] relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 right-0 p-lg opacity-10">
+                        <span class="material-symbols-outlined text-[80px]">analytics</span>
+                    </div>
+                    <div>
+                        <h3 class="font-headline-sm text-headline-sm mb-lg">RSVP Statistics</h3>
+                        <div class="flex items-center gap-xl">
+                            <div>
+                                <p class="text-label-sm text-secondary mb-1">Total Invited</p>
+                                <p class="font-display-lg text-headline-lg">{{ total_rsvp }}</p>
+                            </div>
+                            <div class="h-12 w-px bg-gray-200"></div>
+                            <div>
+                                <p class="text-label-sm text-secondary mb-1">Checked In</p>
+                                <p class="font-display-lg text-headline-lg text-primary">{{ checked_in_total }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-lg">
+                        <div class="flex justify-between text-label-sm mb-2">
+                            <span>Check-in Progress</span>
+                            <span class="font-bold">{{ checkin_progress }}%</span>
+                        </div>
+                        <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-primary" style="width: {{ checkin_progress }}%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-2 bg-white rounded-[1.5rem] p-lg shadow-ambient border border-[#E5E5E5] relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 right-0 p-lg opacity-10">
+                        <span class="material-symbols-outlined text-[80px]">person_add</span>
+                    </div>
+                    <div>
+                        <h3 class="font-headline-sm text-headline-sm mb-lg">Guest Registrations</h3>
+                        <div class="flex items-center gap-xl">
+                            <div>
+                                <p class="text-label-sm text-secondary mb-1">Guest Count</p>
+                                <p class="font-display-lg text-headline-lg">{{ guest_count }}</p>
+                            </div>
+                            <div class="h-12 w-px bg-gray-200"></div>
+                            <div>
+                                <p class="text-label-sm text-secondary mb-1">Total Attendees</p>
+                                <p class="font-display-lg text-headline-lg text-green-600">{{ total_attendees }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-lg">
+                        <p class="text-[10px] text-green-600 font-bold uppercase tracking-wider">Updated from current RSVP data</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg mb-xl">
+                <a class="group cursor-pointer bg-primary text-on-primary rounded-[1.5rem] p-xl shadow-ambient hover:shadow-xl transition-all relative overflow-hidden" href="{% url 'checkin:registered_checkin' %}">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-lg">
+                            <span class="material-symbols-outlined text-white text-3xl">how_to_reg</span>
+                        </div>
+                        <h3 class="font-headline-md text-headline-md mb-sm">Registered Check-In</h3>
+                        <p class="font-body-md opacity-90 mb-xl max-w-xs">Search the pre-registered database for fast entry.</p>
+                        <div class="flex items-center gap-2 font-label-md">
+                            Launch Check-In
+                            <span class="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
+                        </div>
+                    </div>
+                    <div class="absolute -right-4 -bottom-4 opacity-10">
+                        <span class="material-symbols-outlined text-[160px]">qr_code_2</span>
+                    </div>
+                </a>
+
+                <a class="group cursor-pointer bg-white text-on-background rounded-[1.5rem] p-xl shadow-ambient border border-primary/20 hover:border-primary/40 hover:shadow-xl transition-all relative overflow-hidden" href="{% url 'checkin:guest_checkin' %}">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-red-50 text-primary rounded-2xl flex items-center justify-center mb-lg">
+                            <span class="material-symbols-outlined text-3xl">person_add_alt</span>
+                        </div>
+                        <h3 class="font-headline-md text-headline-md mb-sm">Guest Check-In</h3>
+                        <p class="font-body-md text-secondary mb-xl max-w-xs">Register new walk-ins and mark them as checked in on-site.</p>
+                        <div class="flex items-center gap-2 font-label-md text-primary">
+                            Manual Entry
+                            <span class="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
+                        </div>
+                    </div>
+                    <div class="absolute -right-4 -bottom-4 opacity-5 text-primary">
+                        <span class="material-symbols-outlined text-[160px]">assignment_ind</span>
+                    </div>
+                </a>
+            </div>
+
+            <section class="bg-white rounded-[1.5rem] p-lg shadow-ambient border border-[#E5E5E5]">
+                <div class="flex items-center justify-between mb-lg">
+                    <div class="flex items-center gap-md">
+                        <span class="material-symbols-outlined text-primary">database</span>
+                        <h2 class="font-headline-sm text-headline-sm">Data Management</h2>
+                    </div>
+                    <div class="flex gap-sm">
+                        <a class="flex items-center gap-2 px-md py-2 bg-gray-50 hover:bg-gray-100 rounded-xl font-label-sm text-secondary transition-colors" href="{% url 'checkin:export_attendance' %}">
+                            <span class="material-symbols-outlined text-sm">download</span>
+                            Export
+                        </a>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                    <a class="p-lg bg-surface-container-low rounded-xl flex items-center gap-lg border border-transparent hover:border-primary/20 transition-all cursor-pointer" href="{% url 'checkin:import_rsvp' %}">
+                        <div class="bg-white p-4 rounded-xl shadow-sm text-primary">
+                            <span class="material-symbols-outlined text-3xl">upload_file</span>
+                        </div>
+                        <div>
+                            <p class="font-headline-sm text-body-lg mb-1">Import Guest List</p>
+                            <p class="text-body-sm text-secondary">Upload RSVP data from CSV or XLSX</p>
+                        </div>
+                    </a>
+                    <a class="p-lg bg-surface-container-low rounded-xl flex items-center gap-lg border border-transparent hover:border-primary/20 transition-all cursor-pointer" href="{% url 'checkin:export_attendance' %}">
+                        <div class="bg-white p-4 rounded-xl shadow-sm text-primary">
+                            <span class="material-symbols-outlined text-3xl">download_for_offline</span>
+                        </div>
+                        <div>
+                            <p class="font-headline-sm text-body-lg mb-1">Export Attendance</p>
+                            <p class="text-body-sm text-secondary">Download final check-in reports</p>
+                        </div>
+                    </a>
+                </div>
+            </section>
+        </main>
     </div>
+
+    <nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pt-2 pb-6 bg-white/90 backdrop-blur-md border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] font-['Lexend'] text-[10px] font-medium">
+        <a class="flex flex-col items-center justify-center text-red-700 bg-red-50 rounded-xl px-4 py-1 transition-transform scale-95" href="{% url 'checkin:dashboard' %}">
+            <span class="material-symbols-outlined">home</span>
+            <span>Home</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-gray-500" href="{% url 'checkin:registered_checkin' %}">
+            <span class="material-symbols-outlined">qr_code</span>
+            <span>Scan</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-gray-500" href="{% url 'checkin:guest_checkin' %}">
+            <span class="material-symbols-outlined">list_alt</span>
+            <span>List</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-gray-500" href="{% url 'checkin:import_rsvp' %}">
+            <span class="material-symbols-outlined">settings</span>
+            <span>Tools</span>
+        </a>
+    </nav>
 </body>
 </html>
