@@ -29,16 +29,20 @@ def dashboard_view(request):
     total_rsvp = RegisteredParticipant.objects.count()
     registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
     guest_count = GuestParticipant.objects.count()
-    guest_checked_in = GuestParticipant.objects.filter(checked_in=True).count()
-    checked_in_total = registered_checked_in + guest_checked_in
-    total_attendees = total_rsvp + guest_count
-    checkin_progress = round((checked_in_total / total_attendees) * 100) if total_attendees else 0
+    current_total_attendance = registered_checked_in + guest_count
+    attendance_pool_total = total_rsvp + guest_count
+    checkin_progress = (
+        round((current_total_attendance / attendance_pool_total) * 100)
+        if attendance_pool_total
+        else 0
+    )
 
     context = {
+        "active_nav": "dashboard",
         "total_rsvp": total_rsvp,
-        "checked_in_total": checked_in_total,
+        "registered_checked_in": registered_checked_in,
         "guest_count": guest_count,
-        "total_attendees": total_attendees,
+        "current_total_attendance": current_total_attendance,
         "checkin_progress": checkin_progress,
         "has_participants": total_rsvp > 0,
     }
@@ -51,6 +55,7 @@ def registered_checkin_view(request):
 
     participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
     context = {
+        "active_nav": "registered",
         "participants": participants,
         "registered_total": participants.count(),
         "checked_in_total": participants.filter(checked_in=True).count(),
@@ -76,6 +81,7 @@ def guest_checkin_view(request):
         return HttpResponseNotAllowed(["GET", "POST"])
 
     context = {
+        "active_nav": "guest",
         "form": form,
         "guest_count": GuestParticipant.objects.count(),
     }
@@ -83,7 +89,10 @@ def guest_checkin_view(request):
 
 
 def import_rsvp_view(request):
-    context = {"summary": None}
+    context = {
+        "active_nav": "data_tools",
+        "summary": None,
+    }
 
     if request.method == "POST":
         uploaded_file = request.FILES.get("rsvp_file")
@@ -91,7 +100,13 @@ def import_rsvp_view(request):
     elif request.method != "GET":
         return HttpResponseNotAllowed(["GET", "POST"])
 
-    context["participants"] = RegisteredParticipant.objects.all().order_by("submission_order")
+    participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
+    guest_participants = GuestParticipant.objects.all().order_by("-checkin_time", "-created_at", "id")
+    context["participants"] = participants
+    context["guest_participants"] = guest_participants
+    context["registered_total"] = participants.count()
+    context["registered_checked_in"] = participants.filter(checked_in=True).count()
+    context["guest_count"] = guest_participants.count()
     return render(request, "import_rsvp.html", context)
 
 
@@ -133,7 +148,7 @@ def delete_participant(request, participant_id):
             submission_order=F("submission_order") - 1
         )
 
-    return redirect("checkin:import_rsvp")
+    return _redirect_to_next(request, "checkin:import_rsvp")
 
 
 def delete_all_participants(request):
@@ -149,4 +164,4 @@ def delete_all_guests(request):
         return HttpResponseNotAllowed(["POST"])
 
     GuestParticipant.objects.all().delete()
-    return redirect("checkin:guest_checkin")
+    return _redirect_to_next(request, "checkin:guest_checkin")
