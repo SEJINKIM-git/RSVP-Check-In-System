@@ -150,6 +150,21 @@
         </aside>
 
         <main class="flex-grow p-gutter md:p-xl max-w-container-max mx-auto w-full">
+            {% if database_warning %}
+                <section class="mb-lg rounded-[1.25rem] border border-amber-200 bg-amber-50 px-lg py-md text-amber-900 shadow-sm">
+                    <div class="flex items-start gap-md">
+                        <span class="material-symbols-outlined text-2xl text-amber-700">warning</span>
+                        <div>
+                            <h2 class="font-['Lexend'] text-lg font-bold">Database setup required</h2>
+                            <p class="mt-1 text-sm leading-6">{{ database_warning }}</p>
+                            {% if is_vercel %}
+                                <p class="mt-2 text-sm leading-6">Set `DJANGO_SECRET_KEY` and `DATABASE_URL` in Vercel, then run `python manage.py migrate` against that database.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+            {% endif %}
+
             <section class="mb-xl">
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-lg">
                     <div>

@@ -1,5 +1,8 @@
+import os
+
 from django.db import transaction
 from django.db.models import F
+from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -14,6 +17,26 @@ from checkin.services.export_attendance import (
 from checkin.services.import_rsvp import import_rsvp_file
 
 
+DATABASE_UNAVAILABLE_MESSAGE = (
+    "The database is not ready for this deployment yet. "
+    "On Vercel, set DATABASE_URL to a managed Postgres database and run migrations. "
+    "SQLite files from local development are not a reliable production database on Vercel."
+)
+
+
+def _database_unavailable_context():
+    return {
+        "total_rsvp": 0,
+        "checked_in_total": 0,
+        "guest_count": 0,
+        "total_attendees": 0,
+        "checkin_progress": 0,
+        "has_participants": False,
+        "database_warning": DATABASE_UNAVAILABLE_MESSAGE,
+        "is_vercel": bool(os.environ.get("VERCEL")),
+    }
+
+
 def _redirect_to_next(request, fallback_name):
     next_url = request.POST.get("next") or request.GET.get("next")
     if next_url and url_has_allowed_host_and_scheme(
@@ -26,22 +49,28 @@ def _redirect_to_next(request, fallback_name):
 
 
 def dashboard_view(request):
-    total_rsvp = RegisteredParticipant.objects.count()
-    registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
-    guest_count = GuestParticipant.objects.count()
-    guest_checked_in = GuestParticipant.objects.filter(checked_in=True).count()
-    checked_in_total = registered_checked_in + guest_checked_in
-    total_attendees = total_rsvp + guest_count
-    checkin_progress = round((checked_in_total / total_attendees) * 100) if total_attendees else 0
+    try:
+        total_rsvp = RegisteredParticipant.objects.count()
+        registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
+        guest_count = GuestParticipant.objects.count()
+        guest_checked_in = GuestParticipant.objects.filter(checked_in=True).count()
+        checked_in_total = registered_checked_in + guest_checked_in
+        total_attendees = total_rsvp + guest_count
+        checkin_progress = round((checked_in_total / total_attendees) * 100) if total_attendees else 0
 
-    context = {
-        "total_rsvp": total_rsvp,
-        "checked_in_total": checked_in_total,
-        "guest_count": guest_count,
-        "total_attendees": total_attendees,
-        "checkin_progress": checkin_progress,
-        "has_participants": total_rsvp > 0,
-    }
+        context = {
+            "total_rsvp": total_rsvp,
+            "checked_in_total": checked_in_total,
+            "guest_count": guest_count,
+            "total_attendees": total_attendees,
+            "checkin_progress": checkin_progress,
+            "has_participants": total_rsvp > 0,
+            "database_warning": "",
+            "is_vercel": bool(os.environ.get("VERCEL")),
+        }
+    except (OperationalError, ProgrammingError):
+        context = _database_unavailable_context()
+
     return render(request, "checkin/dashboard.html", context)
 
 
