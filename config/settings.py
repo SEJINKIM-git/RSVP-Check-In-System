@@ -13,8 +13,45 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+import dj_database_url
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _get_bool_env(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_list_env(name):
+    value = os.environ.get(name, "")
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _sqlite_database_config():
+    return {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+
+
+def _database_config_from_url(database_url):
+    return dj_database_url.parse(
+        database_url,
+        conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "0")),
+        conn_health_checks=True,
+        ssl_require=True,
+    )
+
+
+def _database_config():
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return _database_config_from_url(database_url)
+    return _sqlite_database_config()
 
 
 # Quick-start development settings - unsuitable for production
@@ -27,32 +64,33 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get(
-    'DJANGO_DEBUG',
-    'False' if os.environ.get('VERCEL') else 'True',
-) == 'True'
+DEBUG = _get_bool_env('DJANGO_DEBUG', default=False)
 
 ALLOWED_HOSTS = [
+    'spring26-rsvp-checkin-system.vercel.app',
     '.vercel.app',
     'localhost',
     '127.0.0.1',
 ]
 
-if os.environ.get('DJANGO_ALLOWED_HOSTS'):
-    ALLOWED_HOSTS.extend(os.environ['DJANGO_ALLOWED_HOSTS'].split(','))
+ALLOWED_HOSTS.extend(_get_list_env('DJANGO_ALLOWED_HOSTS'))
 
 CSRF_TRUSTED_ORIGINS = [
     'https://*.vercel.app',
 ]
 
-if os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS'):
-    CSRF_TRUSTED_ORIGINS.extend(os.environ['DJANGO_CSRF_TRUSTED_ORIGINS'].split(','))
+CSRF_TRUSTED_ORIGINS.extend(_get_list_env('DJANGO_CSRF_TRUSTED_ORIGINS'))
 
-if not DEBUG:
+if os.environ.get('VERCEL'):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+if os.environ.get('VERCEL') and SECRET_KEY.startswith('django-insecure-'):
+    raise RuntimeError(
+        'Set the DJANGO_SECRET_KEY environment variable for the Vercel deployment.'
+    )
 
 
 # Application definition
@@ -82,7 +120,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -101,10 +139,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    "default": _database_config(),
 }
 
 

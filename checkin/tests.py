@@ -1,6 +1,8 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import OperationalError
 from django.test import TestCase
 from django.utils import timezone
+from unittest.mock import patch
 
 from checkin.forms import DEFAULT_GUEST_MAJORS, GuestCheckInForm
 from checkin.models import GuestParticipant, RegisteredParticipant
@@ -403,6 +405,14 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertContains(response, "University of Utah")
         self.assertContains(response, "Registered Check-In")
         self.assertContains(response, "Guest Check-In")
+
+    def test_dashboard_handles_unavailable_database_without_500(self):
+        with patch("checkin.views.RegisteredParticipant.objects.count", side_effect=OperationalError):
+            response = self.client.get("/checkin/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Database setup required")
+        self.assertContains(response, "DATABASE_URL")
 
     def test_registered_checkin_page_lists_participants_in_submission_order(self):
         RegisteredParticipant.objects.create(
