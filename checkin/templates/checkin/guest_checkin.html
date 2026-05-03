@@ -1,229 +1,105 @@
-<!DOCTYPE html>
-<html class="light" lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Guest Check-In | UAC RSVP</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f9f9f9;
-        }
+{% extends "checkin/base.html" %}
 
-        .font-lexend {
-            font-family: 'Lexend', sans-serif;
-        }
+{% block title %}Guest Check-In | UAC RSVP{% endblock %}
 
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-            vertical-align: middle;
-        }
+{% block extra_styles %}
+    .guest-form input,
+    .guest-form select {
+        width: 100%;
+        min-height: 48px;
+        border: 0;
+        border-radius: 0.75rem;
+        background: #f3f3f3;
+        color: #1a1c1c;
+        font-size: 16px;
+    }
 
-        .guest-form input,
-        .guest-form select {
-            width: 100%;
-            min-height: 48px;
-            border: 0;
-            border-radius: 0.75rem;
-            background: #f3f3f3;
-            color: #1a1c1c;
-            font-size: 16px;
-        }
+    .guest-form input:focus,
+    .guest-form select:focus {
+        border: 0;
+        box-shadow: 0 0 0 2px #9e0000;
+    }
+{% endblock %}
 
-        .guest-form input:focus,
-        .guest-form select:focus {
-            border: 0;
-            box-shadow: 0 0 0 2px #9e0000;
-        }
-    </style>
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        secondary: "#595f66",
-                        primary: "#9e0000",
-                        "primary-container": "#cc0000",
-                        background: "#f9f9f9",
-                        "on-background": "#1a1c1c",
-                        "on-surface": "#1a1c1c",
-                        "surface-container-low": "#f3f3f3",
-                        "primary-fixed-dim": "#ffb4a8"
-                    },
-                    spacing: {
-                        xl: "48px",
-                        sm: "8px",
-                        md: "16px",
-                        margin: "32px",
-                        gutter: "24px",
-                        lg: "24px"
-                    },
-                    fontFamily: {
-                        "display-lg": ["Lexend"],
-                        "label-md": ["Inter"],
-                        "body-md": ["Inter"]
-                    },
-                    fontSize: {
-                        "display-lg": ["48px", { lineHeight: "1.1", letterSpacing: "0", fontWeight: "700" }],
-                        "label-md": ["14px", { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" }],
-                        "body-md": ["16px", { lineHeight: "1.6", fontWeight: "400" }]
-                    }
-                }
-            }
-        }
-    </script>
-</head>
-<body class="bg-background text-on-background font-body-md antialiased">
-    <header class="bg-white dark:bg-slate-900 flex justify-between items-center px-6 h-16 w-full sticky top-0 z-40 shadow-sm border-b border-gray-200 dark:border-gray-800 font-lexend antialiased">
-        <div class="flex items-center gap-4">
-            <a class="font-lexend text-[32px] font-black tracking-tight text-red-700 dark:text-red-500" href="{% url 'checkin:dashboard' %}">UAC RSVP</a>
-        </div>
-    </header>
-
-    <div class="flex">
-        <aside class="hidden lg:flex flex-col gap-1 bg-gray-50 dark:bg-slate-950 h-[calc(100vh-64px)] w-64 border-r border-gray-200 dark:border-gray-800 fixed left-0 top-16 p-4 pt-7 font-lexend text-sm">
-            <div class="mb-6 px-6">
-                <p class="font-bold text-red-700">Check-In System</p>
-                <p class="text-xs text-gray-500">University of Utah</p>
-            </div>
-            <nav class="flex flex-col gap-1">
-                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:dashboard' %}">
-                    <span class="material-symbols-outlined">dashboard</span>
-                    <span>Dashboard</span>
-                </a>
-                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:registered_checkin' %}">
-                    <span class="material-symbols-outlined">assignment_turned_in</span>
-                    <span>Check-in</span>
-                </a>
-                <a class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-semibold rounded-lg mx-2 px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out" href="{% url 'checkin:guest_checkin' %}">
-                    <span class="material-symbols-outlined">group</span>
-                    <span>Guest Regs.</span>
-                </a>
-                <a class="text-gray-600 dark:text-gray-400 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:import_rsvp' %}">
-                    <span class="material-symbols-outlined">import_export</span>
-                    <span>Data Tools</span>
-                </a>
-            </nav>
-        </aside>
-
-        <main class="flex-1 lg:ml-64 p-margin lg:p-xl space-y-xl max-w-7xl">
-            <div>
-                <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Guest Check-In</h1>
-            </div>
-
-            <div class="flex justify-end">
-                <div class="flex flex-wrap justify-end gap-md">
-                    <a class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95" href="{% url 'checkin:dashboard' %}">
-                        Back to Dashboard
-                    </a>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-gutter">
-                <div class="bg-white p-lg rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 transition-transform hover:-translate-y-1">
-                    <div class="flex flex-col gap-md md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <p class="text-secondary font-label-md uppercase mb-sm">Guest Registrations</p>
-                            <div class="flex items-baseline gap-xs">
-                                <span class="text-[48px] leading-none font-black text-primary">{{ guest_count }}</span>
-                                <span class="text-secondary text-sm">total</span>
-                            </div>
-                        </div>
-                        <form method="post" action="{% url 'checkin:delete_all_guests' %}" onsubmit="return confirm('Delete all guest records?');">
-                            {% csrf_token %}
-                            <button type="submit" class="px-lg py-sm border-2 border-primary bg-white text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95">
-                                Delete Guest Records
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)] gap-gutter">
-                <article class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
-                    <div class="p-lg border-b border-gray-100">
-                        <h2 class="font-lexend text-2xl font-bold text-on-surface">Guest Information</h2>
-                        <p class="mt-2 text-secondary">Enter walk-in guest details. Guests are counted as checked in as soon as this form is submitted.</p>
-                    </div>
-
-                    <div class="p-lg">
-                        {% if form.non_field_errors %}
-                            <div class="mb-md rounded-xl border border-red-200 bg-red-50 p-md text-red-800">{{ form.non_field_errors }}</div>
-                        {% endif %}
-
-                        <form method="post" class="guest-form grid gap-lg">
-                            {% csrf_token %}
-
-                            <div>
-                                <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.name.id_for_label }}">Name</label>
-                                {{ form.name }}
-                                {% if form.name.errors %}
-                                    <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
-                                        {% for error in form.name.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-
-                            <div>
-                                <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.unid.id_for_label }}">UNID</label>
-                                {{ form.unid }}
-                                <p class="mt-sm text-sm text-secondary">Use the same University ID format as registered attendees: <code>u1234567</code>.</p>
-                                {% if form.unid.errors %}
-                                    <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
-                                        {% for error in form.unid.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-
-                            <div>
-                                <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.major.id_for_label }}">Major</label>
-                                {{ form.major }}
-                                {% if form.major.errors %}
-                                    <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
-                                        {% for error in form.major.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-
-                            <div class="flex justify-end pt-sm">
-                                <button type="submit" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
-                                    Submit Guest Check-In
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </article>
-
-                <aside class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
-                    <div class="flex h-full flex-col p-lg">
-                        <div>
-                            <h3 class="font-lexend text-xl font-bold text-on-surface">Form Rules</h3>
-                            <ul class="mt-md list-disc space-y-sm pl-lg text-secondary">
-                                <li>Name is required.</li>
-                                <li>UNID must match the <code>u1234567</code> format.</li>
-                                <li>Registered RSVP UNIDs should use Registered Check-In.</li>
-                                <li>Major uses the available dropdown choices.</li>
-                            </ul>
-                        </div>
-                        <div class="mt-auto flex justify-end pt-lg">
-                            <a class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95" href="{% url 'checkin:registered_checkin' %}">
-                                Registered Check-In
-                            </a>
-                        </div>
-                    </div>
-                </aside>
-            </section>
-        </main>
+{% block content %}
+    <div>
+        <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Guest Check-In</h1>
+        <p class="mt-md max-w-2xl text-body-md text-secondary">Keep this page focused on quick walk-in entry. Cleanup and destructive data actions now live in Data Tools.</p>
     </div>
-</body>
-</html>
+
+    <div class="flex justify-end">
+        <div class="flex flex-wrap justify-end gap-md">
+            <a class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95" href="{% url 'checkin:dashboard' %}">
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <section class="max-w-5xl">
+        <article class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+            <div class="p-lg border-b border-gray-100 flex flex-col md:flex-row md:items-start md:justify-between gap-md">
+                <div>
+                    <h2 class="font-lexend text-2xl font-bold text-on-surface">Guest Information</h2>
+                    <p class="mt-2 text-secondary">Enter walk-in guest details. Guests are counted as checked in as soon as this form is submitted.</p>
+                </div>
+                <div class="inline-flex items-center gap-2 rounded-full bg-red-50 px-md py-sm text-sm font-semibold text-primary">
+                    <span class="material-symbols-outlined text-[18px]">groups</span>
+                    <span>{{ guest_count }} Guest{{ guest_count|pluralize }} Recorded</span>
+                </div>
+            </div>
+
+            <div class="p-lg">
+                {% if form.non_field_errors %}
+                    <div class="mb-md rounded-xl border border-red-200 bg-red-50 p-md text-red-800">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <form method="post" class="guest-form grid gap-lg md:grid-cols-2">
+                    {% csrf_token %}
+
+                    <div>
+                        <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.name.id_for_label }}">Name</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
+                                {% for error in form.name.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.unid.id_for_label }}">UNID</label>
+                        {{ form.unid }}
+                        <p class="mt-sm text-sm text-secondary">Use the same University ID format as registered attendees: <code>u1234567</code>.</p>
+                        {% if form.unid.errors %}
+                            <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
+                                {% for error in form.unid.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.major.id_for_label }}">Major</label>
+                        {{ form.major }}
+                        {% if form.major.errors %}
+                            <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
+                                {% for error in form.major.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="md:col-span-2 flex justify-end pt-sm">
+                        <button type="submit" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
+                            Submit Guest Check-In
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </article>
+    </section>
+{% endblock %}
