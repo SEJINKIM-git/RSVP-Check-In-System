@@ -332,6 +332,7 @@ class ImportPageParticipantListTests(TestCase):
         self.assertContains(response, "Export RSVP List (CSV)")
         self.assertContains(response, "Export Final Attendance (CSV)")
         self.assertContains(response, "Delete Entire RSVP List")
+        self.assertContains(response, "Delete Guest Records")
         self.assertContains(response, "/checkin/participants/delete-all/")
         self.assertNotContains(response, "<th class=\"actions-cell\">Delete</th>", html=False)
         self.assertContains(response, "University of Utah")
@@ -348,9 +349,25 @@ class ImportPageParticipantListTests(TestCase):
 
         response = self.client.get("/checkin/import/")
 
-        self.assertContains(response, "Search by Name or UNID")
+        self.assertContains(response, "Search by Name, UNID, or Major")
         self.assertContains(response, 'id="participant-search"', html=False)
-        self.assertContains(response, "Type a name or UNID")
+        self.assertContains(response, 'placeholder="Search by Name, UNID, or Major"', html=False)
+
+    def test_import_page_shows_guest_records_list(self):
+        GuestParticipant.objects.create(
+            name="Walk In Guest",
+            unid="u8123000",
+            major="Visitor",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        response = self.client.get("/checkin/import/")
+
+        self.assertContains(response, "Guest Records")
+        self.assertContains(response, "Walk In Guest")
+        self.assertContains(response, "u8123000")
+        self.assertContains(response, "Visitor")
 
     def test_toggle_checkin_redirects_to_safe_next_url_when_provided(self):
         participant = RegisteredParticipant.objects.create(
@@ -369,6 +386,22 @@ class ImportPageParticipantListTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/checkin/registered/")
         self.assertTrue(participant.checked_in)
+
+    def test_delete_all_guests_redirects_to_safe_next_url_when_provided(self):
+        GuestParticipant.objects.create(
+            name="Walk In Guest",
+            unid="u8123456",
+            major="Other",
+        )
+
+        response = self.client.post(
+            "/checkin/guests/delete-all/",
+            {"next": "/checkin/import/"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/checkin/import/")
+        self.assertEqual(GuestParticipant.objects.count(), 0)
 
 
 class DashboardAndCheckInFlowTests(TestCase):
@@ -400,11 +433,17 @@ class DashboardAndCheckInFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["total_rsvp"], 2)
-        self.assertEqual(response.context["checked_in_total"], 2)
+        self.assertEqual(response.context["registered_checked_in"], 1)
         self.assertEqual(response.context["guest_count"], 1)
+        self.assertEqual(response.context["current_total_attendance"], 2)
         self.assertContains(response, "University of Utah")
+        self.assertContains(response, "Current Total Attendance")
+        self.assertContains(response, "Total Invited")
+        self.assertContains(response, "Guest Count")
         self.assertContains(response, "Registered Check-In")
         self.assertContains(response, "Guest Check-In")
+        self.assertNotContains(response, "Data Management")
+        self.assertNotContains(response, "Total Attendees")
 
     def test_dashboard_handles_unavailable_database_without_500(self):
         with patch("checkin.views.RegisteredParticipant.objects.count", side_effect=OperationalError):
@@ -436,7 +475,7 @@ class DashboardAndCheckInFlowTests(TestCase):
             [participant.name for participant in participants],
             ["Earlier Student", "Later Student"],
         )
-        self.assertContains(response, "Search by Name or UNID")
+        self.assertContains(response, "Search by Name, UNID, or Major")
 
     def test_guest_checkin_creates_guest_and_redirects_to_dashboard(self):
         response = self.client.post(
@@ -482,3 +521,10 @@ class DashboardAndCheckInFlowTests(TestCase):
             response,
             "This UNID is already in the registered RSVP list. Use Registered Check-In instead.",
         )
+
+    def test_guest_checkin_page_hides_admin_actions_and_rules_box(self):
+        response = self.client.get("/checkin/guest/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Delete Guest Records")
+        self.assertNotContains(response, "Form Rules")
