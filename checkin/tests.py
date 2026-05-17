@@ -1,12 +1,16 @@
+from io import BytesIO
+from unittest.mock import patch
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.utils import OperationalError
 from django.test import TestCase
 from django.utils import timezone
-from unittest.mock import patch
+
+from openpyxl import Workbook
 
 from checkin.forms import DEFAULT_GUEST_MAJORS, GuestCheckInForm
 from checkin.models import GuestParticipant, RegisteredParticipant
-from checkin.services.import_rsvp import import_rsvp_file
+from checkin.services.import_rsvp import IMPORT_SESSION_KEY, import_rsvp_file, prepare_rsvp_import
 
 
 class RSVPImportServiceTests(TestCase):
@@ -130,8 +134,73 @@ class RSVPImportServiceTests(TestCase):
         self.assertEqual(summary["imported_count"], 0)
         self.assertIn("Missing required column(s)", summary["errors"][0])
         self.assertIn("UNID", summary["errors"][0])
-        self.assertIn("Major", summary["errors"][0])
         self.assertIn("Detected column(s): Name, Email", summary["errors"][0])
+
+    def test_import_allows_missing_major_column(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            b"Full Name,University ID\nAlice Kim,U1234567\n",
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 1)
+        self.assertEqual(summary["errors"], [])
+        participant = RegisteredParticipant.objects.get()
+        self.assertEqual(participant.name, "Alice Kim")
+        self.assertEqual(participant.unid, "u1234567")
+        self.assertEqual(participant.major, "")
+
+    def test_prepare_import_detects_google_form_question_headers(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            (
+                b"Timestamp,What is your full name?,What is your uNID?,Field of Study,Comments\n"
+                b"2026-05-01,Alice Kim,U1234567,Accounting,No comment\n"
+            ),
+            content_type="text/csv",
+        )
+
+        prepared_import = prepare_rsvp_import(uploaded_file)
+
+        self.assertEqual(prepared_import["errors"], [])
+        self.assertEqual(prepared_import["mapping"]["name"], "What is your full name?")
+        self.assertEqual(prepared_import["mapping"]["unid"], "What is your uNID?")
+        self.assertEqual(prepared_import["mapping"]["major"], "Field of Study")
+        self.assertEqual(prepared_import["preview"]["valid_count"], 1)
+
+    def test_import_supports_xlsx_files(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["Student Name", "uNID", "Program", "Dietary Restrictions"])
+        worksheet.append(["Alice Kim", "U1234567", "Finance", "Vegetarian"])
+        worksheet.append(["Brian Lee", "u2345678", "Marketing", ""])
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.xlsx",
+            output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 2)
+        self.assertEqual(summary["errors"], [])
+        self.assertEqual(
+            list(
+                RegisteredParticipant.objects.order_by("submission_order").values_list(
+                    "name", "unid", "major"
+                )
+            ),
+            [
+                ("Alice Kim", "u1234567", "Finance"),
+                ("Brian Lee", "u2345678", "Marketing"),
+            ],
+        )
 
 
 class AttendanceExportViewTests(TestCase):
@@ -368,6 +437,70 @@ class ImportPageParticipantListTests(TestCase):
         self.assertContains(response, "Walk In Guest")
         self.assertContains(response, "u8123000")
         self.assertContains(response, "Visitor")
+
+    def test_import_page_previews_mapping_before_confirming_import(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            b"Participant Name,Student ID,Major/Program\nAlice Kim,U1234567,Finance\n",
+            content_type="text/csv",
+        )
+
+        response = self.client.post("/checkin/import/", {"import_action": "preview", "rsvp_file": uploaded_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RegisteredParticipant.objects.count(), 0)
+        self.assertContains(response, "Review RSVP Import")
+        self.assertContains(response, "Confirm Import")
+        self.assertIn(IMPORT_SESSION_KEY, self.client.session)
+
+        response = self.client.post(
+            "/checkin/import/",
+            {
+                "import_action": "confirm",
+                "mapping_name": "Participant Name",
+                "mapping_unid": "Student ID",
+                "mapping_major": "Major/Program",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RegisteredParticipant.objects.count(), 1)
+        participant = RegisteredParticipant.objects.get()
+        self.assertEqual(participant.name, "Alice Kim")
+        self.assertEqual(participant.unid, "u1234567")
+        self.assertEqual(participant.major, "Finance")
+
+    def test_import_review_page_shows_full_scrollable_preview_with_status_controls(self):
+        csv_content = "\n".join(
+            [
+                "Participant Name,Student ID,Major/Program",
+                "Student One,U1234561,Finance",
+                "Student Two,U1234562,Marketing",
+                "Student Three,U1234563,Accounting",
+                "Student Four,U1234564,Operations",
+                "Student Five,U1234565,Information Systems",
+                "Student Six,U1234566,Management",
+                "Missing Unid,,Economics",
+            ]
+        )
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            csv_content.encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        response = self.client.post("/checkin/import/", {"import_action": "preview", "rsvp_file": uploaded_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Student Six")
+        self.assertContains(response, "Validation Status")
+        self.assertContains(response, "Error Reason")
+        self.assertContains(response, "Import-Ready")
+        self.assertContains(response, "Search imported rows")
+        self.assertContains(response, "Missing required value(s): UNID.")
+        self.assertContains(response, 'data-filter="valid"', html=False)
+        self.assertContains(response, 'data-filter="invalid"', html=False)
+        self.assertContains(response, 'class="import-review-table overflow-auto"', html=False)
 
     def test_toggle_checkin_redirects_to_safe_next_url_when_provided(self):
         participant = RegisteredParticipant.objects.create(
