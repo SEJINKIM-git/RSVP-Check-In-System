@@ -13,8 +13,8 @@ from checkin.models import RegisteredParticipant
 logger = logging.getLogger(__name__)
 
 IMPORT_SESSION_KEY = "pending_rsvp_import"
-REQUIRED_FIELD_NAMES = ("name", "unid")
-OPTIONAL_FIELD_NAMES = ("major",)
+REQUIRED_FIELD_NAMES = ("name", "unid", "major")
+OPTIONAL_FIELD_NAMES = ()
 IMPORT_FIELD_NAMES = REQUIRED_FIELD_NAMES + OPTIONAL_FIELD_NAMES
 
 FIELD_LABELS = {
@@ -230,6 +230,8 @@ def parse_rsvp_file(uploaded_file):
         return _parse_csv_file(uploaded_file)
     if file_name.endswith(".xlsx"):
         return _parse_xlsx_file(uploaded_file)
+    if file_name.endswith(".xls"):
+        raise ValueError("Legacy XLS files are not supported. Please save the file as CSV or XLSX.")
     raise ValueError("Only CSV and XLSX uploads are supported.")
 
 
@@ -286,6 +288,8 @@ def build_import_preview(rows, mapping):
             missing_values.append("Name")
         if not unid:
             missing_values.append("UNID")
+        if not major:
+            missing_values.append("Major")
         if missing_values:
             row_errors.append("Missing required value(s): " + ", ".join(missing_values) + ".")
             missing_required_count += 1
@@ -426,6 +430,8 @@ def import_rsvp_rows(rows, mapping):
             missing_values.append("Name")
         if not unid:
             missing_values.append("UNID")
+        if not major:
+            missing_values.append("Major")
 
         if missing_values:
             summary["skipped_count"] += 1

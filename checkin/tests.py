@@ -134,9 +134,10 @@ class RSVPImportServiceTests(TestCase):
         self.assertEqual(summary["imported_count"], 0)
         self.assertIn("Missing required column(s)", summary["errors"][0])
         self.assertIn("UNID", summary["errors"][0])
+        self.assertIn("Major", summary["errors"][0])
         self.assertIn("Detected column(s): Name, Email", summary["errors"][0])
 
-    def test_import_allows_missing_major_column(self):
+    def test_reports_missing_required_major_column(self):
         uploaded_file = SimpleUploadedFile(
             "rsvp.csv",
             b"Full Name,University ID\nAlice Kim,U1234567\n",
@@ -145,12 +146,34 @@ class RSVPImportServiceTests(TestCase):
 
         summary = import_rsvp_file(uploaded_file)
 
-        self.assertEqual(summary["imported_count"], 1)
-        self.assertEqual(summary["errors"], [])
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.name, "Alice Kim")
-        self.assertEqual(participant.unid, "u1234567")
-        self.assertEqual(participant.major, "")
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertIn("Missing required column(s): Major", summary["errors"][0])
+
+    def test_import_skips_rows_missing_major_value(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            b"Name,UNID,Major\nAlice Kim,U1234567,\n",
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertEqual(summary["skipped_count"], 1)
+        self.assertIn("Row 2: missing required value(s): Major.", summary["errors"])
+
+    def test_import_skips_rows_missing_name_value(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            b"Name,UNID,Major\n,U1234567,Finance\n",
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertEqual(summary["skipped_count"], 1)
+        self.assertIn("Row 2: missing required value(s): Name.", summary["errors"])
 
     def test_prepare_import_detects_google_form_question_headers(self):
         uploaded_file = SimpleUploadedFile(
@@ -169,6 +192,21 @@ class RSVPImportServiceTests(TestCase):
         self.assertEqual(prepared_import["mapping"]["unid"], "What is your uNID?")
         self.assertEqual(prepared_import["mapping"]["major"], "Field of Study")
         self.assertEqual(prepared_import["preview"]["valid_count"], 1)
+
+    def test_import_supports_csv_files_with_different_column_order(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            b"Department,Student Name,Student ID\nFinance,Alice Kim,U1234567\n",
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 1)
+        participant = RegisteredParticipant.objects.get()
+        self.assertEqual(participant.name, "Alice Kim")
+        self.assertEqual(participant.unid, "u1234567")
+        self.assertEqual(participant.major, "Finance")
 
     def test_import_supports_xlsx_files(self):
         workbook = Workbook()
@@ -201,6 +239,71 @@ class RSVPImportServiceTests(TestCase):
                 ("Brian Lee", "u2345678", "Marketing"),
             ],
         )
+
+    def test_import_supports_xlsx_files_with_different_column_order(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["Program", "Student ID", "Student Name"])
+        worksheet.append(["Operations", "U1234567", "Alice Kim"])
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.xlsx",
+            output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 1)
+        participant = RegisteredParticipant.objects.get()
+        self.assertEqual(participant.name, "Alice Kim")
+        self.assertEqual(participant.unid, "u1234567")
+        self.assertEqual(participant.major, "Operations")
+
+    def test_import_supports_cp1252_csv_files(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            "Full Name,Student ID,Department\nJos\xe9 Alvarez,U1234567,Finance\n".encode("cp1252"),
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 1)
+        participant = RegisteredParticipant.objects.get()
+        self.assertEqual(participant.name, "José Alvarez")
+        self.assertEqual(participant.unid, "u1234567")
+        self.assertEqual(participant.major, "Finance")
+
+    def test_reports_legacy_xls_files_as_unsupported(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.xls",
+            b"fake-xls-content",
+            content_type="application/vnd.ms-excel",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertEqual(
+            summary["errors"],
+            ["Legacy XLS files are not supported. Please save the file as CSV or XLSX."],
+        )
+
+    def test_reports_generic_unsupported_file_type(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.txt",
+            b"Name,UNID,Major\nAlice Kim,U1234567,Finance\n",
+            content_type="text/plain",
+        )
+
+        summary = import_rsvp_file(uploaded_file)
+
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertEqual(summary["errors"], ["Only CSV and XLSX uploads are supported."])
 
 
 class AttendanceExportViewTests(TestCase):
