@@ -173,16 +173,16 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Import RSVP File</h2>
-            <p class="mt-2 text-secondary">Upload a Google Forms RSVP export. CSV and XLSX files can be reviewed before the final import.</p>
+            <p class="mt-2 text-secondary">Upload a Google Forms or spreadsheet RSVP export. CSV and XLSX files can be reviewed before the final import.</p>
         </div>
         <div class="p-lg">
             <form method="post" enctype="multipart/form-data" class="grid gap-md">
                 {% csrf_token %}
                 <input type="hidden" name="import_action" value="preview">
                 <div class="max-w-2xl">
-                    <label class="mb-sm block font-label-md uppercase text-secondary" for="rsvp_file">RSVP CSV File</label>
+                    <label class="mb-sm block font-label-md uppercase text-secondary" for="rsvp_file">RSVP File</label>
                     <input id="rsvp_file" class="w-full px-md py-sm" type="file" name="rsvp_file" accept=".csv,.xlsx" required>
-                    <p class="mt-sm text-sm text-secondary">Required data: Name and UNID. Major is optional.</p>
+                    <p class="mt-sm text-sm text-secondary">Required data: Name, UNID, and Major. Legacy XLS files should be resaved as CSV or XLSX before upload.</p>
                 </div>
                 <div class="flex justify-end">
                     <button type="submit" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">

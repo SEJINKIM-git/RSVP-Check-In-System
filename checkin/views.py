@@ -18,6 +18,7 @@ from checkin.services.import_rsvp import (
     FIELD_LABELS,
     IMPORT_FIELD_NAMES,
     IMPORT_SESSION_KEY,
+    REQUIRED_FIELD_NAMES,
     build_import_preview,
     import_rsvp_rows,
     prepare_rsvp_import,
@@ -37,7 +38,7 @@ def _mapping_fields_context(mapping):
             "name": field,
             "label": FIELD_LABELS[field],
             "selected_header": mapping.get(field, ""),
-            "required": field in ("name", "unid"),
+            "required": field in REQUIRED_FIELD_NAMES,
         }
         for field in IMPORT_FIELD_NAMES
     ]
