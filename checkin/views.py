@@ -1,5 +1,8 @@
+import os
+
 from django.db import transaction
 from django.db.models import F
+from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -11,7 +14,47 @@ from checkin.services.export_attendance import (
     build_attendance_csv_response,
     build_rsvp_csv_response,
 )
-from checkin.services.import_rsvp import import_rsvp_file
+from checkin.services.import_rsvp import (
+    FIELD_LABELS,
+    IMPORT_FIELD_NAMES,
+    IMPORT_SESSION_KEY,
+    build_import_preview,
+    import_rsvp_rows,
+    prepare_rsvp_import,
+)
+
+
+DATABASE_UNAVAILABLE_MESSAGE = (
+    "The database is not ready for this deployment yet. "
+    "On Vercel, set DATABASE_URL to a managed Postgres database and run migrations. "
+    "SQLite files from local development are not a reliable production database on Vercel."
+)
+
+
+def _mapping_fields_context(mapping):
+    return [
+        {
+            "name": field,
+            "label": FIELD_LABELS[field],
+            "selected_header": mapping.get(field, ""),
+            "required": field in ("name", "unid"),
+        }
+        for field in IMPORT_FIELD_NAMES
+    ]
+
+
+def _database_unavailable_context():
+    return {
+        "active_nav": "dashboard",
+        "total_rsvp": 0,
+        "registered_checked_in": 0,
+        "guest_count": 0,
+        "current_total_attendance": 0,
+        "checkin_progress": 0,
+        "has_participants": False,
+        "database_warning": DATABASE_UNAVAILABLE_MESSAGE,
+        "is_vercel": bool(os.environ.get("VERCEL")),
+    }
 
 
 def _redirect_to_next(request, fallback_name):
@@ -26,26 +69,32 @@ def _redirect_to_next(request, fallback_name):
 
 
 def dashboard_view(request):
-    total_rsvp = RegisteredParticipant.objects.count()
-    registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
-    guest_count = GuestParticipant.objects.count()
-    current_total_attendance = registered_checked_in + guest_count
-    attendance_pool_total = total_rsvp + guest_count
-    checkin_progress = (
-        round((current_total_attendance / attendance_pool_total) * 100)
-        if attendance_pool_total
-        else 0
-    )
+    try:
+        total_rsvp = RegisteredParticipant.objects.count()
+        registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
+        guest_count = GuestParticipant.objects.count()
+        current_total_attendance = registered_checked_in + guest_count
+        attendance_pool_total = total_rsvp + guest_count
+        checkin_progress = (
+            round((current_total_attendance / attendance_pool_total) * 100)
+            if attendance_pool_total
+            else 0
+        )
 
-    context = {
-        "active_nav": "dashboard",
-        "total_rsvp": total_rsvp,
-        "registered_checked_in": registered_checked_in,
-        "guest_count": guest_count,
-        "current_total_attendance": current_total_attendance,
-        "checkin_progress": checkin_progress,
-        "has_participants": total_rsvp > 0,
-    }
+        context = {
+            "active_nav": "dashboard",
+            "total_rsvp": total_rsvp,
+            "registered_checked_in": registered_checked_in,
+            "guest_count": guest_count,
+            "current_total_attendance": current_total_attendance,
+            "checkin_progress": checkin_progress,
+            "has_participants": total_rsvp > 0,
+            "database_warning": "",
+            "is_vercel": bool(os.environ.get("VERCEL")),
+        }
+    except (OperationalError, ProgrammingError):
+        context = _database_unavailable_context()
+
     return render(request, "checkin/dashboard.html", context)
 
 
@@ -92,11 +141,84 @@ def import_rsvp_view(request):
     context = {
         "active_nav": "data_tools",
         "summary": None,
+        "mapping_context": None,
     }
 
     if request.method == "POST":
-        uploaded_file = request.FILES.get("rsvp_file")
-        context["summary"] = import_rsvp_file(uploaded_file)
+        action = request.POST.get("import_action", "preview")
+
+        if action == "confirm":
+            pending_import = request.session.get(IMPORT_SESSION_KEY)
+            if not pending_import:
+                context["summary"] = {
+                    "imported_count": 0,
+                    "skipped_count": 0,
+                    "duplicate_unids": [],
+                    "errors": ["No RSVP import preview is waiting for confirmation."],
+                }
+            else:
+                posted_mapping = {
+                    field: request.POST.get(f"mapping_{field}", pending_import["mapping"].get(field, ""))
+                    for field in IMPORT_FIELD_NAMES
+                }
+                pending_import["mapping"] = posted_mapping
+                context["summary"] = import_rsvp_rows(
+                    pending_import["rows"],
+                    pending_import["mapping"],
+                )
+                request.session.pop(IMPORT_SESSION_KEY, None)
+        elif action == "cancel":
+            request.session.pop(IMPORT_SESSION_KEY, None)
+            context["summary"] = None
+        elif action == "remap":
+            pending_import = request.session.get(IMPORT_SESSION_KEY)
+            if not pending_import:
+                context["summary"] = {
+                    "imported_count": 0,
+                    "skipped_count": 0,
+                    "duplicate_unids": [],
+                    "errors": ["Upload a file before changing column mapping."],
+                }
+            else:
+                mapping = {
+                    field: request.POST.get(f"mapping_{field}", "")
+                    for field in IMPORT_FIELD_NAMES
+                }
+                preview = build_import_preview(pending_import["rows"], mapping)
+                pending_import["mapping"] = mapping
+                request.session[IMPORT_SESSION_KEY] = pending_import
+                request.session.modified = True
+                context["mapping_context"] = {
+                    "headers": pending_import["headers"],
+                    "mapping": mapping,
+                    "detection": pending_import["detection"],
+                    "preview": preview,
+                    "mapping_fields": _mapping_fields_context(mapping),
+                }
+        else:
+            uploaded_file = request.FILES.get("rsvp_file")
+            prepared_import = prepare_rsvp_import(uploaded_file)
+            if prepared_import["errors"]:
+                context["summary"] = {
+                    "imported_count": 0,
+                    "skipped_count": 0,
+                    "duplicate_unids": [],
+                    "errors": prepared_import["errors"],
+                }
+            else:
+                request.session[IMPORT_SESSION_KEY] = {
+                    "headers": prepared_import["headers"],
+                    "rows": prepared_import["rows"],
+                    "mapping": prepared_import["mapping"],
+                    "detection": prepared_import["detection"],
+                }
+                context["mapping_context"] = {
+                    "headers": prepared_import["headers"],
+                    "mapping": prepared_import["mapping"],
+                    "detection": prepared_import["detection"],
+                    "preview": prepared_import["preview"],
+                    "mapping_fields": _mapping_fields_context(prepared_import["mapping"]),
+                }
     elif request.method != "GET":
         return HttpResponseNotAllowed(["GET", "POST"])
 

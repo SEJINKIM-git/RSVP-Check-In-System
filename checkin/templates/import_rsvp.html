@@ -13,9 +13,15 @@
     }
 
     input[type="file"]:focus,
-    #participant-search:focus {
+    #participant-search:focus,
+    #import-review-search:focus {
         border: 0;
         box-shadow: 0 0 0 2px #9e0000;
+    }
+
+    .import-review-table {
+        max-height: min(34rem, 68vh);
+        scrollbar-gutter: stable;
     }
 {% endblock %}
 
@@ -167,24 +173,164 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Import RSVP File</h2>
-            <p class="mt-2 text-secondary">Upload the RSVP CSV file from Google Forms. Imported records will appear in Registered Check-In immediately.</p>
+            <p class="mt-2 text-secondary">Upload a Google Forms RSVP export. CSV and XLSX files can be reviewed before the final import.</p>
         </div>
         <div class="p-lg">
             <form method="post" enctype="multipart/form-data" class="grid gap-md">
                 {% csrf_token %}
+                <input type="hidden" name="import_action" value="preview">
                 <div class="max-w-2xl">
                     <label class="mb-sm block font-label-md uppercase text-secondary" for="rsvp_file">RSVP CSV File</label>
-                    <input id="rsvp_file" class="w-full px-md py-sm" type="file" name="rsvp_file" accept=".csv" required>
-                    <p class="mt-sm text-sm text-secondary">Required columns: Name, UNID, Major</p>
+                    <input id="rsvp_file" class="w-full px-md py-sm" type="file" name="rsvp_file" accept=".csv,.xlsx" required>
+                    <p class="mt-sm text-sm text-secondary">Required data: Name and UNID. Major is optional.</p>
                 </div>
                 <div class="flex justify-end">
                     <button type="submit" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
-                        Import
+                        Review Import
                     </button>
                 </div>
             </form>
         </div>
     </section>
+
+    {% if mapping_context %}
+        <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+            <div class="p-lg border-b border-gray-100">
+                <h2 class="font-lexend text-2xl font-bold text-on-surface">Review RSVP Import</h2>
+                <p class="mt-2 text-secondary">Confirm the detected columns, preview row quality, then import the valid participants.</p>
+            </div>
+            <div class="p-lg space-y-lg">
+                {% if mapping_context.detection.needs_mapping %}
+                    <div class="rounded-xl border border-orange-200 bg-orange-50 p-md text-orange-900">
+                        Some required columns need review before import.
+                    </div>
+                {% endif %}
+
+                <form method="post" class="grid gap-lg">
+                    {% csrf_token %}
+                    <div class="grid gap-md md:grid-cols-3">
+                        {% for field in mapping_context.mapping_fields %}
+                            <div>
+                                <label class="mb-sm block font-label-md uppercase text-secondary" for="mapping_{{ field.name }}">
+                                    {{ field.label }}{% if field.required %} *{% endif %}
+                                </label>
+                                <select id="mapping_{{ field.name }}" name="mapping_{{ field.name }}" class="w-full rounded-xl border border-gray-200 bg-surface-container-low px-md py-sm text-body-md focus:ring-2 focus:ring-primary">
+                                    <option value="">Do not import</option>
+                                    {% for header in mapping_context.headers %}
+                                        <option value="{{ header }}" {% if header == field.selected_header %}selected{% endif %}>{{ header }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+                        <div class="rounded-xl bg-surface-container-low p-md">
+                            <p class="font-label-md uppercase text-secondary">Total Rows</p>
+                            <p class="mt-sm text-[32px] leading-none font-black text-on-surface">{{ mapping_context.preview.total_rows }}</p>
+                        </div>
+                        <div class="rounded-xl bg-surface-container-low p-md">
+                            <p class="font-label-md uppercase text-secondary">Valid</p>
+                            <p class="mt-sm text-[32px] leading-none font-black text-green-700">{{ mapping_context.preview.valid_count }}</p>
+                        </div>
+                        <div class="rounded-xl bg-surface-container-low p-md">
+                            <p class="font-label-md uppercase text-secondary">Invalid</p>
+                            <p class="mt-sm text-[32px] leading-none font-black text-primary">{{ mapping_context.preview.invalid_count }}</p>
+                        </div>
+                        <div class="rounded-xl bg-surface-container-low p-md">
+                            <p class="font-label-md uppercase text-secondary">Import-Ready</p>
+                            <p class="mt-sm text-[32px] leading-none font-black text-on-surface">{{ mapping_context.preview.valid_count }}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-md rounded-xl border border-gray-100 bg-surface-container-low p-md md:flex-row md:items-center md:justify-between">
+                        <div class="relative w-full md:max-w-md">
+                            <span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-secondary">search</span>
+                            <input
+                                id="import-review-search"
+                                class="w-full rounded-xl border-0 bg-white py-sm pl-xl pr-md text-body-md focus:ring-2 focus:ring-primary"
+                                type="text"
+                                placeholder="Search imported rows"
+                                autocomplete="off"
+                            >
+                        </div>
+                        <div class="inline-flex w-full rounded-xl bg-white p-1 md:w-auto" aria-label="Filter imported rows">
+                            <button type="button" class="import-status-filter flex-1 rounded-lg px-md py-sm font-lexend text-sm font-semibold text-primary transition-colors md:flex-none" data-filter="all" aria-pressed="true">All</button>
+                            <button type="button" class="import-status-filter flex-1 rounded-lg px-md py-sm font-lexend text-sm font-semibold text-secondary transition-colors md:flex-none" data-filter="valid" aria-pressed="false">Valid</button>
+                            <button type="button" class="import-status-filter flex-1 rounded-lg px-md py-sm font-lexend text-sm font-semibold text-secondary transition-colors md:flex-none" data-filter="invalid" aria-pressed="false">Invalid</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-hidden rounded-xl border border-gray-100">
+                        <div class="import-review-table overflow-auto">
+                            <table class="w-full min-w-[56rem] text-left border-collapse">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="bg-surface-container-low text-secondary font-label-md shadow-sm">
+                                        <th class="px-lg py-md">Row</th>
+                                        <th class="px-lg py-md">Name</th>
+                                        <th class="px-lg py-md">UNID</th>
+                                        <th class="px-lg py-md">Major</th>
+                                        <th class="px-lg py-md">Validation Status</th>
+                                        <th class="px-lg py-md">Error Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="import-review-table-body" class="divide-y divide-gray-100 bg-white">
+                                    {% for row in mapping_context.preview.rows %}
+                                        <tr
+                                            class="{% if row.is_valid %}bg-green-50/35 hover:bg-green-50{% else %}bg-red-50/75 hover:bg-red-100/70{% endif %} transition-colors"
+                                            data-status="{% if row.is_valid %}valid{% else %}invalid{% endif %}"
+                                            data-search="{{ row.row_number }} {{ row.name|default:''|lower }} {{ row.unid|default:''|lower }} {{ row.major|default:''|lower }} {{ row.errors|join:' '|lower }}"
+                                        >
+                                            <td class="whitespace-nowrap px-lg py-md text-secondary">{{ row.row_number }}</td>
+                                            <td class="px-lg py-md font-semibold text-on-surface">{{ row.name|default:"-" }}</td>
+                                            <td class="whitespace-nowrap px-lg py-md font-mono {% if row.errors %}text-primary{% else %}text-secondary{% endif %}">{{ row.unid|default:"-" }}</td>
+                                            <td class="px-lg py-md text-secondary">{{ row.major|default:"-" }}</td>
+                                            <td class="px-lg py-md">
+                                                {% if row.is_valid %}
+                                                    <span class="inline-flex items-center rounded-full bg-green-100 px-sm py-1 text-sm font-bold uppercase tracking-wide text-green-800">Valid</span>
+                                                {% else %}
+                                                    <span class="inline-flex items-center rounded-full bg-red-100 px-sm py-1 text-sm font-bold uppercase tracking-wide text-red-800">Invalid</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-lg py-md text-sm">
+                                                {% if row.errors %}
+                                                    <ul class="space-y-1 text-red-800">
+                                                        {% for error in row.errors %}
+                                                            <li>{{ error }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                {% else %}
+                                                    <span class="text-secondary">Ready to import</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p id="import-review-empty-state" class="hidden bg-white p-lg text-secondary">No imported rows match the current filters.</p>
+                        <div class="flex flex-col gap-sm border-t border-gray-100 bg-surface-container-low p-md text-body-sm text-secondary sm:flex-row sm:items-center sm:justify-between">
+                            <p id="import-review-visible-count">Showing {{ mapping_context.preview.total_rows }} of {{ mapping_context.preview.total_rows }} rows</p>
+                            <p>{{ mapping_context.preview.valid_count }} valid, {{ mapping_context.preview.invalid_count }} invalid, {{ mapping_context.preview.valid_count }} import-ready</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-sm sm:flex-row sm:justify-end">
+                        <button type="submit" name="import_action" value="cancel" class="px-lg py-sm border border-gray-300 bg-white text-secondary font-lexend font-semibold rounded-xl hover:bg-gray-100 transition-all active:scale-95">
+                            Cancel
+                        </button>
+                        <button type="submit" name="import_action" value="remap" class="px-lg py-sm border-2 border-primary bg-white text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95">
+                            Update Preview
+                        </button>
+                        <button type="submit" name="import_action" value="confirm" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
+                            Confirm Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    {% endif %}
 
     {% if summary %}
         <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
@@ -314,5 +460,62 @@
         if (participantSearchInput) {
             participantSearchInput.addEventListener("input", filterParticipantRows);
         }
+
+        const importReviewSearchInput = document.getElementById("import-review-search");
+        const importReviewRows = Array.from(document.querySelectorAll("#import-review-table-body tr"));
+        const importReviewEmptyState = document.getElementById("import-review-empty-state");
+        const importReviewVisibleCount = document.getElementById("import-review-visible-count");
+        const importStatusFilterButtons = Array.from(document.querySelectorAll(".import-status-filter"));
+        let activeImportStatusFilter = "all";
+
+        function updateImportStatusFilterButtons() {
+            importStatusFilterButtons.forEach((button) => {
+                const isActive = button.dataset.filter === activeImportStatusFilter;
+                button.setAttribute("aria-pressed", isActive ? "true" : "false");
+                button.classList.toggle("bg-primary", isActive);
+                button.classList.toggle("text-white", isActive);
+                button.classList.toggle("text-secondary", !isActive);
+                button.classList.toggle("text-primary", !isActive && button.dataset.filter === "all");
+            });
+        }
+
+        function filterImportReviewRows() {
+            if (importReviewRows.length === 0 || !importReviewEmptyState) {
+                return;
+            }
+
+            const query = importReviewSearchInput ? importReviewSearchInput.value.trim().toLowerCase() : "";
+            let visibleCount = 0;
+
+            importReviewRows.forEach((row) => {
+                const matchesStatus = activeImportStatusFilter === "all" || row.dataset.status === activeImportStatusFilter;
+                const matchesSearch = !query || (row.dataset.search || "").includes(query);
+                const shouldShow = matchesStatus && matchesSearch;
+
+                row.style.display = shouldShow ? "" : "none";
+                if (shouldShow) {
+                    visibleCount += 1;
+                }
+            });
+
+            importReviewEmptyState.classList.toggle("hidden", visibleCount !== 0);
+            if (importReviewVisibleCount) {
+                importReviewVisibleCount.textContent = `Showing ${visibleCount} of ${importReviewRows.length} rows`;
+            }
+        }
+
+        if (importReviewSearchInput) {
+            importReviewSearchInput.addEventListener("input", filterImportReviewRows);
+        }
+
+        importStatusFilterButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                activeImportStatusFilter = button.dataset.filter || "all";
+                updateImportStatusFilterButtons();
+                filterImportReviewRows();
+            });
+        });
+
+        updateImportStatusFilterButtons();
     </script>
 {% endblock %}
