@@ -1,10 +1,9 @@
 import json
 import os
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from django.db import transaction
-from django.db.models import Count, F
-from django.db.models.functions import TruncHour
+from django.db.models import F
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
@@ -15,6 +14,7 @@ from checkin.forms import GuestCheckInForm
 from checkin.models import GuestParticipant, RegisteredParticipant
 from checkin.services.export_attendance import (
     build_attendance_csv_response,
+    build_current_attendance_group_rows,
     build_rsvp_csv_response,
     build_rsvp_xlsx_response,
 )
@@ -367,11 +367,15 @@ def toggle_checkin(request, participant_id):
     participant.save(update_fields=["checked_in", "checkin_time", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "checkin/partials/checkin_button.html", {
-            "participant": participant,
-            "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
-            "is_htmx": True,
-        })
+        return render(
+            request,
+            "checkin/partials/checkin_button.html",
+            {
+                "participant": participant,
+                "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
+                "is_htmx": True,
+            },
+        )
 
     return _redirect_to_next(request, "checkin:registered_checkin")
 
@@ -390,10 +394,14 @@ def check_unid(request):
     if not in_rsvp and not in_guest:
         return HttpResponse("")
 
-    return render(request, "checkin/partials/unid_check.html", {
-        "in_rsvp": in_rsvp,
-        "in_guest": in_guest,
-    })
+    return render(
+        request,
+        "checkin/partials/unid_check.html",
+        {
+            "in_rsvp": in_rsvp,
+            "in_guest": in_guest,
+        },
+    )
 
 
 def delete_participant(request, participant_id):
@@ -428,41 +436,37 @@ def delete_all_guests(request):
     return _redirect_to_next(request, "checkin:guest_checkin")
 
 
-def _normalize_major(major_str):
-    s = (major_str or "").strip()
-    if not s or s.lower() in ("none", "n/a", "-", "null", "na"):
-        return "미입력"
-    if s.lower() == "other":
-        return "Other (기타)"
-    return s
-
-
-def _major_sort_key(item):
-    name, count = item
-    if name == "미입력":
-        return (2, -count)
-    if name == "Other (기타)":
-        return (1, -count)
-    return (0, -count)
-
-
 def analytics_view(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
 
     try:
-        # 15분 단위 체크인 집계
+        configuration = get_import_configuration_snapshot()
+        selected_columns = (
+            configuration.get("display_columns")
+            or configuration.get("imported_columns")
+            or []
+        )
+        checked_in_registered = list(
+            RegisteredParticipant.objects.filter(
+                checked_in=True,
+                checkin_time__isnull=False,
+            ).order_by("submission_order", "id")
+        )
+        checked_in_guests = list(
+            GuestParticipant.objects.filter(
+                checked_in=True,
+                checkin_time__isnull=False,
+            ).order_by("-checkin_time", "-created_at", "id")
+        )
+
         quarter_counts = defaultdict(int)
-        for row in RegisteredParticipant.objects.filter(
-            checked_in=True, checkin_time__isnull=False
-        ).values("checkin_time"):
-            dt = row["checkin_time"]
+        for participant in checked_in_registered:
+            dt = participant.checkin_time
             key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
             quarter_counts[key] += 1
-        for row in GuestParticipant.objects.filter(
-            checked_in=True, checkin_time__isnull=False
-        ).values("checkin_time"):
-            dt = row["checkin_time"]
+        for guest in checked_in_guests:
+            dt = guest.checkin_time
             key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
             quarter_counts[key] += 1
 
@@ -470,17 +474,14 @@ def analytics_view(request):
         checkin_time_labels = [f"{q.hour:02d}:{q.minute:02d}" for q in sorted_quarters]
         checkin_time_values = [quarter_counts[q] for q in sorted_quarters]
 
-        # 전공별 분포 (registered + guest, 미입력/Other 분리)
-        major_counter = Counter()
-        for p in RegisteredParticipant.objects.values("major"):
-            major_counter[_normalize_major(p["major"])] += 1
-        for p in GuestParticipant.objects.values("major"):
-            if p["major"]:
-                major_counter[_normalize_major(p["major"])] += 1
-
-        sorted_majors = sorted(major_counter.items(), key=_major_sort_key)
-        major_labels = [m[0] for m in sorted_majors]
-        major_values = [m[1] for m in sorted_majors]
+        attendance_group_label, grouped_attendance = build_current_attendance_group_rows(
+            checked_in_registered,
+            checked_in_guests,
+            selected_columns,
+            configuration,
+        )
+        major_labels = [name for name, _ in grouped_attendance]
+        major_values = [count for _, count in grouped_attendance]
 
         total_registered = RegisteredParticipant.objects.count()
         total_checked_in = (
@@ -495,6 +496,7 @@ def analytics_view(request):
             "checkin_time_values": json.dumps(checkin_time_values),
             "major_labels": json.dumps(major_labels),
             "major_values": json.dumps(major_values),
+            "attendance_group_label": attendance_group_label,
             "total_registered": total_registered,
             "total_checked_in": total_checked_in,
             "total_guest": total_guest,
@@ -508,6 +510,7 @@ def analytics_view(request):
             "checkin_time_values": json.dumps([]),
             "major_labels": json.dumps([]),
             "major_values": json.dumps([]),
+            "attendance_group_label": "Major",
             "total_registered": 0,
             "total_checked_in": 0,
             "total_guest": 0,

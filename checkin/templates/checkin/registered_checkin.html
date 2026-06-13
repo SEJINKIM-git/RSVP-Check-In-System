@@ -108,6 +108,7 @@
         const searchEmptyState = document.getElementById("search-empty-state");
         const visibleCountCopy = document.getElementById("visible-count-copy");
         const totalRows = participantRows.length;
+        let pendingCheckinScrollY = null;
 
         function filterParticipantRows() {
             if (!participantSearchInput || participantRows.length === 0 || !searchEmptyState) {
@@ -136,5 +137,18 @@
         if (participantSearchInput) {
             participantSearchInput.addEventListener("input", filterParticipantRows);
         }
+
+        document.body.addEventListener("htmx:beforeRequest", (event) => {
+            if (event.detail.elt?.matches("[data-checkin-toggle]")) {
+                pendingCheckinScrollY = window.scrollY;
+            }
+        });
+
+        document.body.addEventListener("htmx:afterSettle", (event) => {
+            if (event.detail.requestConfig?.elt?.matches("[data-checkin-toggle]") && pendingCheckinScrollY !== null) {
+                window.scrollTo({ top: pendingCheckinScrollY, behavior: "auto" });
+                pendingCheckinScrollY = null;
+            }
+        });
     </script>
 {% endblock %}

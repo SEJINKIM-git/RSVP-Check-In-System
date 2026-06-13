@@ -41,10 +41,19 @@ GROUPING_COLUMN_CANDIDATES = (
     "table",
     "group",
 )
+ATTENDANCE_GROUP_COLUMN_CANDIDATES = (
+    "major",
+    "department",
+    "school",
+    "program",
+    "college",
+)
 
 XLSX_EXPORT_FILENAME = "rsvp_attendance_export.xlsx"
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 HEADER_FONT = Font(bold=True)
+UNSPECIFIED_GROUP_LABEL = "Undeclared"
+OTHER_GROUP_LABEL = "Other"
 
 
 def _format_datetime(value):
@@ -148,6 +157,47 @@ def _guess_guest_value_for_column(column_name, guest):
     return ""
 
 
+def _normalize_group_value(value):
+    cleaned = str(value or "").strip()
+    if not cleaned or cleaned.lower() in {"none", "n/a", "-", "null", "na"}:
+        return UNSPECIFIED_GROUP_LABEL
+    if cleaned.lower() == "other":
+        return OTHER_GROUP_LABEL
+    return cleaned
+
+
+def _group_sort_key(item):
+    name, count = item
+    if name == UNSPECIFIED_GROUP_LABEL:
+        return (2, -count, name.lower())
+    if name == OTHER_GROUP_LABEL:
+        return (1, -count, name.lower())
+    return (0, -count, name.lower())
+
+
+def resolve_grouping_column(selected_columns, configuration_snapshot=None):
+    normalized_columns = [
+        (column_name, _normalize_label(column_name))
+        for column_name in selected_columns or []
+    ]
+    configured_major_column = str(
+        (configuration_snapshot or {}).get("major_column") or ""
+    ).strip()
+
+    if configured_major_column:
+        normalized_major_column = _normalize_label(configured_major_column)
+        for column_name, normalized_name in normalized_columns:
+            if normalized_name == normalized_major_column:
+                return column_name
+
+    for candidate in GROUPING_COLUMN_CANDIDATES:
+        for column_name, normalized_name in normalized_columns:
+            if candidate in normalized_name:
+                return column_name
+
+    return ""
+
+
 def _build_registered_headers(selected_columns, include_unique_identifier):
     headers = []
     if include_unique_identifier:
@@ -226,20 +276,7 @@ def _build_final_guest_row(guest, selected_columns, include_unique_identifier):
 
 
 def _grouped_analysis_rows(participants, selected_columns, configuration_snapshot):
-    normalized_columns = [
-        (column_name, _normalize_label(column_name))
-        for column_name in selected_columns
-    ]
-    grouping_column = ""
-
-    for candidate in GROUPING_COLUMN_CANDIDATES:
-        for column_name, normalized_name in normalized_columns:
-            if candidate in normalized_name:
-                grouping_column = column_name
-                break
-        if grouping_column:
-            break
-
+    grouping_column = resolve_grouping_column(selected_columns, configuration_snapshot)
     if not grouping_column:
         return ""
 
@@ -257,6 +294,62 @@ def _grouped_analysis_rows(participants, selected_columns, configuration_snapsho
         no_show_count = stats["total"] - stats["checked_in"]
         grouped_rows.append([group_value, stats["total"], stats["checked_in"], no_show_count])
 
+    return grouping_column, grouped_rows
+
+
+def build_current_attendance_group_rows(
+    registered_participants,
+    guest_participants,
+    selected_columns,
+    configuration_snapshot,
+):
+    normalized_columns = [
+        (column_name, _normalize_label(column_name))
+        for column_name in selected_columns or []
+    ]
+    configured_major_column = str(
+        (configuration_snapshot or {}).get("major_column") or ""
+    ).strip()
+    grouping_column = ""
+
+    if configured_major_column:
+        normalized_major_column = _normalize_label(configured_major_column)
+        for column_name, normalized_name in normalized_columns:
+            if normalized_name == normalized_major_column:
+                grouping_column = column_name
+                break
+
+    if not grouping_column:
+        for candidate in ATTENDANCE_GROUP_COLUMN_CANDIDATES:
+            for column_name, normalized_name in normalized_columns:
+                if candidate in normalized_name:
+                    grouping_column = column_name
+                    break
+            if grouping_column:
+                break
+
+    grouping_column = (
+        grouping_column
+        or configured_major_column
+        or "Major"
+    )
+    grouped_counts = {}
+
+    for participant in registered_participants:
+        if not participant.checked_in:
+            continue
+        group_value = _participant_value(participant, grouping_column, configuration_snapshot)
+        normalized_value = _normalize_group_value(group_value)
+        grouped_counts[normalized_value] = grouped_counts.get(normalized_value, 0) + 1
+
+    for guest in guest_participants:
+        if not guest.checked_in:
+            continue
+        group_value = _guess_guest_value_for_column(grouping_column, guest)
+        normalized_value = _normalize_group_value(group_value)
+        grouped_counts[normalized_value] = grouped_counts.get(normalized_value, 0) + 1
+
+    grouped_rows = sorted(grouped_counts.items(), key=_group_sort_key)
     return grouping_column, grouped_rows
 
 

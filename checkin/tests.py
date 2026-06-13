@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from unittest.mock import patch
 
@@ -534,6 +535,59 @@ class AttendanceExportViewTests(TestCase):
         self.assertIn(("A1", 1, 0, 1), analysis_rows)
 
 
+class AnalyticsViewTests(TestCase):
+    def test_analytics_counts_checked_in_registered_and_guests_by_major(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Checked In IS Student",
+            unid="u3001",
+            major="IS",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=2,
+            name="No Show IS Student",
+            unid="u3002",
+            major="IS",
+            checked_in=False,
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=3,
+            name="Checked In Finance Student",
+            unid="u3003",
+            major="Finance",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        GuestParticipant.objects.create(
+            name="Walk In IS Guest",
+            unid="g3001",
+            major="IS",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        GuestParticipant.objects.create(
+            name="Walk In Other Guest",
+            unid="g3002",
+            major="Other",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        response = self.client.get("/checkin/analytics/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.context["major_labels"]), ["IS", "Finance", "Other"])
+        self.assertEqual(json.loads(response.context["major_values"]), [2, 1, 1])
+        self.assertEqual(response.context["attendance_group_label"], "Major")
+        self.assertContains(response, "Current Attendance by Major")
+        self.assertContains(
+            response,
+            "Checked-in registered participants plus guest check-ins",
+        )
+
+
 class GuestCheckInFormTests(TestCase):
     def test_guest_form_uses_uac_major_list(self):
         RegisteredParticipant.objects.create(
@@ -564,6 +618,28 @@ class GuestCheckInFormTests(TestCase):
 
 
 class ParticipantListAndAdminFlowTests(TestCase):
+    def test_toggle_checkin_returns_partial_for_htmx_requests(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="HTMX Toggle Student",
+            unid="u4000",
+            major="Operations",
+            checked_in=False,
+            checkin_time=None,
+        )
+
+        response = self.client.post(
+            f"/checkin/participants/{participant.id}/toggle-checkin/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        participant.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(participant.checked_in)
+        self.assertContains(response, 'data-checkin-toggle="true"', html=False)
+        self.assertContains(response, 'hx-swap-oob="true"', html=False)
+        self.assertNotIn("Location", response)
+
     def test_toggle_checkin_updates_status_and_time(self):
         participant = RegisteredParticipant.objects.create(
             submission_order=1,

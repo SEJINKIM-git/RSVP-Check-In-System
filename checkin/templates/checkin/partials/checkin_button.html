@@ -2,7 +2,8 @@
     type="button"
     hx-post="{% url 'checkin:toggle_checkin' participant.id %}"
     hx-target="#checkin-cell-{{ participant.id }}"
-    hx-swap="innerHTML"
+    hx-swap="innerHTML show:none focus-scroll:false"
+    data-checkin-toggle="true"
     class="inline-flex items-center gap-sm rounded-lg px-sm py-xs transition-all active:scale-95 group/btn [&.htmx-request]:opacity-40 [&.htmx-request]:cursor-wait"
     aria-label="Toggle check-in for {{ participant.name|default:participant.unid }}"
 >
@@ -19,5 +20,5 @@
 </button>
 
 {% if is_htmx %}
-<span id="stat-checked-in-total" hx-swap-oob="true">{{ checked_in_total }}</span>
+<span id="stat-checked-in-total" hx-swap-oob="true" class="text-display-lg font-display-xl text-primary">{{ checked_in_total }}</span>
 {% endif %}
