@@ -658,6 +658,23 @@ class ParticipantListAndAdminFlowTests(TestCase):
         self.assertTrue(participant.checked_in)
         self.assertIsNotNone(participant.checkin_time)
 
+    def test_toggle_checkin_can_uncheck_and_clear_time(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Toggle Back Student",
+            unid="u4003",
+            major="Operations",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        response = self.client.post(f"/checkin/participants/{participant.id}/toggle-checkin/")
+
+        participant.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(participant.checked_in)
+        self.assertIsNone(participant.checkin_time)
+
     def test_registered_page_does_not_include_undo_helper_or_scroll_restore_hook(self):
         participant = RegisteredParticipant.objects.create(
             submission_order=1,
