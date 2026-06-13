@@ -1,0 +1,18 @@
+{% if in_rsvp %}
+    <div class="mt-sm rounded-xl border border-amber-200 bg-amber-50 p-md text-amber-900 text-sm flex items-start gap-sm">
+        <span class="material-symbols-outlined text-amber-600 text-[18px] flex-shrink-0">warning</span>
+        <div>
+            <strong>{{ in_rsvp.name }}</strong> is already on the RSVP list.
+            {% if in_rsvp.checked_in %}
+                Already checked in.
+            {% else %}
+                Not yet checked in — use <a href="{% url 'checkin:registered_checkin' %}" class="underline font-semibold">Registered Check-In</a> instead.
+            {% endif %}
+        </div>
+    </div>
+{% elif in_guest %}
+    <div class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-red-800 text-sm flex items-start gap-sm">
+        <span class="material-symbols-outlined text-red-600 text-[18px] flex-shrink-0">error</span>
+        <span>This UNID is already recorded as a guest: <strong>{{ in_guest.name }}</strong>.</span>
+    </div>
+{% endif %}

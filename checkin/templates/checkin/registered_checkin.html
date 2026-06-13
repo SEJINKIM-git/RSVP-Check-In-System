@@ -23,14 +23,14 @@
         <div class="bg-white p-lg rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 transition-transform hover:-translate-y-1">
             <p class="text-secondary font-label-md uppercase mb-sm">Registered Participants</p>
             <div class="flex items-baseline gap-xs">
-                <span class="text-display-lg font-display-xl text-on-surface">{{ registered_total }}</span>
+                <span id="stat-registered-total" class="text-display-lg font-display-xl text-on-surface">{{ registered_total }}</span>
                 <span class="text-secondary font-body-sm">total</span>
             </div>
         </div>
         <div class="bg-white p-lg rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 transition-transform hover:-translate-y-1">
             <p class="text-primary font-label-md uppercase mb-sm">Checked In</p>
             <div class="flex items-baseline gap-xs">
-                <span class="text-display-lg font-display-xl text-primary">{{ checked_in_total }}</span>
+                <span id="stat-checked-in-total" class="text-display-lg font-display-xl text-primary">{{ checked_in_total }}</span>
                 <span class="text-secondary font-body-sm">confirmed</span>
             </div>
         </div>
@@ -62,7 +62,7 @@
                     </thead>
                     <tbody id="participants-table-body" class="divide-y divide-gray-100">
                         {% for row in participant_table.rows %}
-                            <tr class="hover:bg-gray-50 transition-colors group" data-search="{{ row.search_text }}">
+                            <tr id="row-{{ row.participant.id }}" class="hover:bg-gray-50 transition-colors group" data-search="{{ row.search_text }}">
                                 {% for cell in row.cells %}
                                     <td class="px-lg py-md {% if forloop.first %}font-semibold text-on-surface{% else %}text-[16px] text-secondary{% endif %}">
                                         {% if forloop.first %}
@@ -79,26 +79,8 @@
                                         {% endif %}
                                     </td>
                                 {% endfor %}
-                                <td class="px-lg py-md">
-                                    <form method="post" action="{% url 'checkin:toggle_checkin' row.participant.id %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="next" value="{% url 'checkin:registered_checkin' %}">
-                                        <label class="flex items-center gap-md cursor-pointer">
-                                            <input
-                                                class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                                type="checkbox"
-                                                {% if row.participant.checked_in %}checked{% endif %}
-                                                onchange="this.form.submit()"
-                                                aria-label="Toggle check-in for {{ row.display_name }}"
-                                            >
-                                            <span class="{% if row.participant.checked_in %}font-semibold text-primary{% else %}font-medium text-secondary{% endif %}">
-                                                {% if row.participant.checked_in %}Checked In{% else %}Pending{% endif %}
-                                            </span>
-                                        </label>
-                                        <noscript>
-                                            <button class="mt-2 px-md py-sm bg-primary text-white font-lexend font-semibold rounded-lg" type="submit">Save</button>
-                                        </noscript>
-                                    </form>
+                                <td class="px-lg py-md" id="checkin-cell-{{ row.participant.id }}">
+                                    {% include "checkin/partials/checkin_button.html" with participant=row.participant %}
                                 </td>
                             </tr>
                         {% endfor %}

@@ -1,0 +1,185 @@
+{% extends "checkin/base.html" %}
+
+{% block title %}Data Analysis | UAC RSVP{% endblock %}
+
+{% block extra_styles %}
+    .donut-center {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        pointer-events: none;
+    }
+{% endblock %}
+
+{% block content %}
+    <div>
+        <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Data Analysis</h1>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Track real-time check-in status and major distribution of attendees.</p>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-lg">
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Total RSVP</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_registered }}</p>
+            <p class="text-body-sm text-secondary">Registered attendees</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Checked In</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_checked_in }}</p>
+            <p class="text-body-sm text-secondary">Including walk-ins</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Walk-ins</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_guest }}</p>
+            <p class="text-body-sm text-secondary">On-site registrations</p>
+        </div>
+    </div>
+
+    <!-- 전공별 참석 인원 -->
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Attendance by Major</h2>
+            <p class="mt-2 text-secondary text-body-sm">Grouped by major, with Other and Undeclared at the bottom</p>
+        </div>
+        <div class="p-lg">
+            {% if has_major_data %}
+                <div id="major-chart-wrap" style="position: relative; min-height: 200px;">
+                    <canvas id="majorChart"></canvas>
+                </div>
+            {% else %}
+                <div class="py-xl text-center text-secondary">
+                    <span class="material-symbols-outlined text-5xl text-gray-300">school</span>
+                    <p class="mt-md">No attendee data available.</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- 시간대별 체크인 -->
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Check-ins Over Time</h2>
+            <p class="mt-2 text-secondary text-body-sm">Aggregated in 15-minute intervals</p>
+        </div>
+        <div class="p-lg">
+            {% if has_checkin_data %}
+                <div style="position: relative; height: 300px;">
+                    <canvas id="timeChart"></canvas>
+                </div>
+            {% else %}
+                <div class="py-xl text-center text-secondary">
+                    <span class="material-symbols-outlined text-5xl text-gray-300">schedule</span>
+                    <p class="mt-md">No check-in data yet. Data will appear here as attendees arrive.</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = "#595f66";
+
+    {% if has_major_data %}
+    (function () {
+        const labels = {{ major_labels|safe }};
+        const values = {{ major_values|safe }};
+
+        // 미입력/기타 는 회색 계열, 나머지는 teal
+        const colors = labels.map(l =>
+            l === "미입력"      ? "rgba(156,163,175,0.75)" :
+            l === "Other (기타)" ? "rgba(156,163,175,0.55)" :
+                                   "rgba(52,211,153,0.80)"
+        );
+
+        // 막대 높이 32px + 패딩 12px 기준
+        const barHeight = 44;
+        const chartH = Math.max(200, labels.length * barHeight + 40);
+        document.getElementById("major-chart-wrap").style.height = chartH + "px";
+
+        new Chart(document.getElementById("majorChart").getContext("2d"), {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` Attendees: ${ctx.parsed.x}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0 },
+                        grid: { color: "rgba(0,0,0,0.05)" },
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 13 } }
+                    }
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    {% if has_checkin_data %}
+    (function () {
+        const labels = {{ checkin_time_labels|safe }};
+        const values = {{ checkin_time_values|safe }};
+
+        new Chart(document.getElementById("timeChart").getContext("2d"), {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [{
+                    label: "체크인",
+                    data: values,
+                    backgroundColor: "rgba(96,165,250,0.75)",
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: ([ctx]) => ctx.label,
+                            label: ctx => ` Check-ins: ${ctx.parsed.y}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0 },
+                        grid: { color: "rgba(0,0,0,0.05)" },
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    })();
+    {% endif %}
+</script>
+{% endblock %}

@@ -15,7 +15,9 @@ urlpatterns = [
     path("participants/<int:participant_id>/delete/", views.delete_participant, name="delete_participant"),
     path("participants/delete-all/", views.delete_all_participants, name="delete_all_participants"),
     path("guests/delete-all/", views.delete_all_guests, name="delete_all_guests"),
+    path("guests/check-unid/", views.check_unid, name="check_unid"),
     path("export-rsvp/", views.export_rsvp_view, name="export_rsvp"),
     path("export/xlsx/", views.export_rsvp_xlsx_view, name="export_rsvp_xlsx"),
     path("export/", views.export_attendance_view, name="export_attendance"),
+    path("analytics/", views.analytics_view, name="analytics"),
 ]

@@ -119,4 +119,21 @@
             </div>
         </a>
     </div>
+
+    <a class="group cursor-pointer bg-white text-on-background rounded-[1.5rem] p-xl shadow-ambient border border-primary/20 hover:border-primary/40 hover:shadow-xl transition-all relative overflow-hidden flex items-center justify-between" href="{% url 'checkin:analytics' %}">
+        <div class="relative z-10">
+            <div class="w-14 h-14 bg-red-50 text-primary rounded-2xl flex items-center justify-center mb-lg">
+                <span class="material-symbols-outlined text-3xl">bar_chart</span>
+            </div>
+            <h3 class="font-headline-md text-headline-md mb-sm">Analytics</h3>
+            <p class="font-body-md text-secondary mb-xl max-w-xs">View check-in trends by hour and participant breakdown by major.</p>
+            <div class="flex items-center gap-2 font-label-md text-primary">
+                View Analytics
+                <span class="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
+            </div>
+        </div>
+        <div class="absolute -right-4 -bottom-4 opacity-5 text-primary">
+            <span class="material-symbols-outlined text-[160px]">analytics</span>
+        </div>
+    </a>
 {% endblock %}

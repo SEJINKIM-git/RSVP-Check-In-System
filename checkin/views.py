@@ -1,9 +1,12 @@
+import json
 import os
+from collections import Counter, defaultdict
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, F
+from django.db.models.functions import TruncHour
 from django.db.utils import OperationalError, ProgrammingError
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -362,7 +365,35 @@ def toggle_checkin(request, participant_id):
     participant.checked_in = not participant.checked_in
     participant.checkin_time = timezone.now() if participant.checked_in else None
     participant.save(update_fields=["checked_in", "checkin_time", "updated_at"])
-    return _redirect_to_next(request, "checkin:import_rsvp")
+
+    if request.headers.get("HX-Request"):
+        return render(request, "checkin/partials/checkin_button.html", {
+            "participant": participant,
+            "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
+            "is_htmx": True,
+        })
+
+    return _redirect_to_next(request, "checkin:registered_checkin")
+
+
+def check_unid(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    unid = request.GET.get("unid", "").strip().lower()
+    if not unid:
+        return HttpResponse("")
+
+    in_rsvp = RegisteredParticipant.objects.filter(unid__iexact=unid).first()
+    in_guest = GuestParticipant.objects.filter(unid__iexact=unid).first()
+
+    if not in_rsvp and not in_guest:
+        return HttpResponse("")
+
+    return render(request, "checkin/partials/unid_check.html", {
+        "in_rsvp": in_rsvp,
+        "in_guest": in_guest,
+    })
 
 
 def delete_participant(request, participant_id):
@@ -395,3 +426,93 @@ def delete_all_guests(request):
 
     GuestParticipant.objects.all().delete()
     return _redirect_to_next(request, "checkin:guest_checkin")
+
+
+def _normalize_major(major_str):
+    s = (major_str or "").strip()
+    if not s or s.lower() in ("none", "n/a", "-", "null", "na"):
+        return "미입력"
+    if s.lower() == "other":
+        return "Other (기타)"
+    return s
+
+
+def _major_sort_key(item):
+    name, count = item
+    if name == "미입력":
+        return (2, -count)
+    if name == "Other (기타)":
+        return (1, -count)
+    return (0, -count)
+
+
+def analytics_view(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    try:
+        # 15분 단위 체크인 집계
+        quarter_counts = defaultdict(int)
+        for row in RegisteredParticipant.objects.filter(
+            checked_in=True, checkin_time__isnull=False
+        ).values("checkin_time"):
+            dt = row["checkin_time"]
+            key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
+            quarter_counts[key] += 1
+        for row in GuestParticipant.objects.filter(
+            checked_in=True, checkin_time__isnull=False
+        ).values("checkin_time"):
+            dt = row["checkin_time"]
+            key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
+            quarter_counts[key] += 1
+
+        sorted_quarters = sorted(quarter_counts)
+        checkin_time_labels = [f"{q.hour:02d}:{q.minute:02d}" for q in sorted_quarters]
+        checkin_time_values = [quarter_counts[q] for q in sorted_quarters]
+
+        # 전공별 분포 (registered + guest, 미입력/Other 분리)
+        major_counter = Counter()
+        for p in RegisteredParticipant.objects.values("major"):
+            major_counter[_normalize_major(p["major"])] += 1
+        for p in GuestParticipant.objects.values("major"):
+            if p["major"]:
+                major_counter[_normalize_major(p["major"])] += 1
+
+        sorted_majors = sorted(major_counter.items(), key=_major_sort_key)
+        major_labels = [m[0] for m in sorted_majors]
+        major_values = [m[1] for m in sorted_majors]
+
+        total_registered = RegisteredParticipant.objects.count()
+        total_checked_in = (
+            RegisteredParticipant.objects.filter(checked_in=True).count()
+            + GuestParticipant.objects.filter(checked_in=True).count()
+        )
+        total_guest = GuestParticipant.objects.count()
+
+        context = {
+            "active_nav": "analytics",
+            "checkin_time_labels": json.dumps(checkin_time_labels),
+            "checkin_time_values": json.dumps(checkin_time_values),
+            "major_labels": json.dumps(major_labels),
+            "major_values": json.dumps(major_values),
+            "total_registered": total_registered,
+            "total_checked_in": total_checked_in,
+            "total_guest": total_guest,
+            "has_checkin_data": bool(sorted_quarters),
+            "has_major_data": bool(major_labels),
+        }
+    except (OperationalError, ProgrammingError):
+        context = {
+            "active_nav": "analytics",
+            "checkin_time_labels": json.dumps([]),
+            "checkin_time_values": json.dumps([]),
+            "major_labels": json.dumps([]),
+            "major_values": json.dumps([]),
+            "total_registered": 0,
+            "total_checked_in": 0,
+            "total_guest": 0,
+            "has_checkin_data": False,
+            "has_major_data": False,
+        }
+
+    return render(request, "checkin/analytics.html", context)
