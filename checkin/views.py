@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Count, F
 from django.db.models.functions import TruncHour
 from django.db.utils import OperationalError, ProgrammingError
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -258,7 +258,35 @@ def toggle_checkin(request, participant_id):
     participant.checked_in = not participant.checked_in
     participant.checkin_time = timezone.now() if participant.checked_in else None
     participant.save(update_fields=["checked_in", "checkin_time", "updated_at"])
-    return _redirect_to_next(request, "checkin:import_rsvp")
+
+    if request.headers.get("HX-Request"):
+        return render(request, "checkin/partials/checkin_row.html", {
+            "participant": participant,
+            "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
+            "is_htmx": True,
+        })
+
+    return _redirect_to_next(request, "checkin:registered_checkin")
+
+
+def check_unid(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    unid = request.GET.get("unid", "").strip().lower()
+    if not unid:
+        return HttpResponse("")
+
+    in_rsvp = RegisteredParticipant.objects.filter(unid__iexact=unid).first()
+    in_guest = GuestParticipant.objects.filter(unid__iexact=unid).first()
+
+    if not in_rsvp and not in_guest:
+        return HttpResponse("")
+
+    return render(request, "checkin/partials/unid_check.html", {
+        "in_rsvp": in_rsvp,
+        "in_guest": in_guest,
+    })
 
 
 def delete_participant(request, participant_id):

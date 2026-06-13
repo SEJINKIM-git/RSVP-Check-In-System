@@ -70,15 +70,28 @@
 
                     <div>
                         <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ form.unid.id_for_label }}">UNID</label>
-                        {{ form.unid }}
-                        <p class="mt-sm text-sm text-secondary">Use the same University ID format as registered attendees: <code>u1234567</code>.</p>
-                        {% if form.unid.errors %}
-                            <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
-                                {% for error in form.unid.errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% endif %}
+                        <input
+                            type="text"
+                            id="{{ form.unid.id_for_label }}"
+                            name="unid"
+                            value="{{ form.unid.value|default:'' }}"
+                            placeholder="u1234567"
+                            maxlength="8"
+                            autocomplete="off"
+                            hx-get="{% url 'checkin:check_unid' %}"
+                            hx-target="#unid-check-result"
+                            hx-trigger="blur changed, keyup changed delay:600ms"
+                        >
+                        <p class="mt-sm text-sm text-secondary">Format: <code>u1234567</code></p>
+                        <div id="unid-check-result">
+                            {% if form.unid.errors %}
+                                <ul class="mt-sm rounded-xl border border-red-200 bg-red-50 p-md text-sm text-red-800">
+                                    {% for error in form.unid.errors %}
+                                        <li>{{ error }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <div class="md:col-span-2">

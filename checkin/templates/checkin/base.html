@@ -5,6 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>{% block title %}UAC RSVP{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script id="tailwind-config">
@@ -192,6 +193,12 @@
         </a>
     </nav>
 
+    <script>
+        document.body.addEventListener("htmx:configRequest", function (e) {
+            const match = document.cookie.match(/csrftoken=([^;]+)/);
+            if (match) e.detail.headers["X-CSRFToken"] = match[1];
+        });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

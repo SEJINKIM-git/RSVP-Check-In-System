@@ -20,14 +20,14 @@
         <div class="bg-white p-lg rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 transition-transform hover:-translate-y-1">
             <p class="text-secondary font-label-md uppercase mb-sm">Registered Participants</p>
             <div class="flex items-baseline gap-xs">
-                <span class="text-display-lg font-display-xl text-on-surface">{{ registered_total }}</span>
+                <span id="stat-registered-total" class="text-display-lg font-display-xl text-on-surface">{{ registered_total }}</span>
                 <span class="text-secondary font-body-sm">total</span>
             </div>
         </div>
         <div class="bg-white p-lg rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 transition-transform hover:-translate-y-1">
             <p class="text-primary font-label-md uppercase mb-sm">Checked In</p>
             <div class="flex items-baseline gap-xs">
-                <span class="text-display-lg font-display-xl text-primary">{{ checked_in_total }}</span>
+                <span id="stat-checked-in-total" class="text-display-lg font-display-xl text-primary">{{ checked_in_total }}</span>
                 <span class="text-secondary font-body-sm">confirmed</span>
             </div>
         </div>
@@ -59,39 +59,7 @@
                     </thead>
                     <tbody id="participants-table-body" class="divide-y divide-gray-100">
                         {% for participant in participants %}
-                            <tr class="hover:bg-gray-50 transition-colors group" data-name="{{ participant.name|lower }}" data-unid="{{ participant.unid|lower }}" data-major="{{ participant.major|lower }}">
-                                <td class="px-lg py-md">
-                                    <div class="flex items-center gap-md">
-                                        <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold">{{ participant.name|slice:":1"|upper }}</div>
-                                        <span class="text-[16px] font-semibold text-on-surface">{{ participant.name }}</span>
-                                    </div>
-                                </td>
-                                <td class="px-lg py-md text-[16px] font-mono text-secondary">{{ participant.unid|lower }}</td>
-                                <td class="px-lg py-md">
-                                    <span class="text-[16px] text-secondary">{{ participant.major }}</span>
-                                </td>
-                                <td class="px-lg py-md">
-                                    <form method="post" action="{% url 'checkin:toggle_checkin' participant.id %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="next" value="{% url 'checkin:registered_checkin' %}">
-                                        <label class="flex items-center gap-md cursor-pointer">
-                                            <input
-                                                class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                                type="checkbox"
-                                                {% if participant.checked_in %}checked{% endif %}
-                                                onchange="this.form.submit()"
-                                                aria-label="Toggle check-in for {{ participant.name }}"
-                                            >
-                                            <span class="{% if participant.checked_in %}font-semibold text-primary{% else %}font-medium text-secondary{% endif %}">
-                                                {% if participant.checked_in %}Checked In{% else %}Pending{% endif %}
-                                            </span>
-                                        </label>
-                                        <noscript>
-                                            <button class="mt-2 px-md py-sm bg-primary text-white font-lexend font-semibold rounded-lg" type="submit">Save</button>
-                                        </noscript>
-                                    </form>
-                                </td>
-                            </tr>
+                            {% include "checkin/partials/checkin_row.html" %}
                         {% endfor %}
                     </tbody>
                 </table>
