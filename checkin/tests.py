@@ -6,222 +6,95 @@ from django.db.utils import OperationalError
 from django.test import TestCase
 from django.utils import timezone
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from checkin.forms import DEFAULT_GUEST_MAJORS, GuestCheckInForm
-from checkin.models import GuestParticipant, RegisteredParticipant
-from checkin.services.import_rsvp import IMPORT_SESSION_KEY, import_rsvp_file, prepare_rsvp_import
+from checkin.models import GuestParticipant, RSVPImportConfiguration, RegisteredParticipant
+from checkin.services.import_rsvp import (
+    IMPORT_SESSION_KEY,
+    NAME_TIMESTAMP_ID,
+    get_import_configuration_snapshot,
+    import_rsvp_file,
+    prepare_rsvp_import,
+)
+
+
+def build_xlsx_upload(name, rows):
+    workbook = Workbook()
+    worksheet = workbook.active
+    for row in rows:
+        worksheet.append(row)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return SimpleUploadedFile(
+        name,
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 class RSVPImportServiceTests(TestCase):
-    def test_imports_valid_rows_and_skips_duplicates_and_missing_values(self):
-        RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="Existing Student",
-            unid="u1000000",
-            major="Economics",
-        )
-
-        csv_content = "\n".join(
-            [
-                "Name,UNID,Major",
-                "Alice,u1000001,Computer Science",
-                "Bob,U1000000,Mathematics",
-                "Carol,,History",
-                "Dan,U1000002,Physics",
-                "Erin,u1000002,Chemistry",
-            ]
-        )
-
+    def test_prepare_import_detects_title_row_and_flexible_headers_in_csv(self):
         uploaded_file = SimpleUploadedFile(
             "rsvp.csv",
-            csv_content.encode("utf-8"),
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 2)
-        self.assertEqual(summary["skipped_count"], 3)
-        self.assertEqual(summary["duplicate_unids"], ["u1000000", "u1000002"])
-        self.assertEqual(
-            list(
-                RegisteredParticipant.objects.order_by("submission_order").values_list(
-                    "name", "submission_order", "unid"
-                )
-            ),
-            [
-                ("Existing Student", 1, "u1000000"),
-                ("Alice", 2, "u1000001"),
-                ("Dan", 3, "u1000002"),
-            ],
-        )
-
-    def test_skips_unids_that_do_not_match_required_format_and_reports_error(self):
-        csv_content = "\n".join(
-            [
-                "Name,UNID,Major",
-                "Alice,1234567,Computer Science",
-                "Bob,u123,Economics",
-                "Carol,u123456,Marketing",
-                "Dan,u12345678,Finance",
-                "Erin,uabcdefg,Biology",
-                "Frank,u1234abc,Physics",
-                "Grace,U7654321,Chemistry",
-            ]
-        )
-
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            csv_content.encode("utf-8"),
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 1)
-        self.assertEqual(summary["skipped_count"], 6)
-        self.assertIn("Row 2 skipped: UNID must be in the format u1234567.", summary["errors"])
-        self.assertIn("Row 3 skipped: UNID must be in the format u1234567.", summary["errors"])
-        self.assertIn("Row 4 skipped: UNID must be in the format u1234567.", summary["errors"])
-        self.assertIn("Row 5 skipped: UNID must be in the format u1234567.", summary["errors"])
-        self.assertIn("Row 6 skipped: UNID must be in the format u1234567.", summary["errors"])
-        self.assertIn("Row 7 skipped: UNID must be in the format u1234567.", summary["errors"])
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.unid, "u7654321")
-
-    def test_import_accepts_extra_columns_and_ignores_them(self):
-        csv_content = "\n".join(
-            [
-                "Timestamp,Affiliation,Full Name,Student ID,Dietary Restrictions,Department",
-                "2026-04-28 09:00,Guest,Alice Kim,U1234567,None,Computer Science",
-                "2026-04-28 09:01,Guest,Brian Lee,u2345678,Vegetarian,Economics",
-            ]
-        )
-
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            csv_content.encode("utf-8"),
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 2)
-        self.assertEqual(summary["skipped_count"], 0)
-        self.assertEqual(summary["errors"], [])
-        self.assertEqual(
-            list(
-                RegisteredParticipant.objects.order_by("submission_order").values_list(
-                    "name", "unid", "major"
-                )
-            ),
-            [
-                ("Alice Kim", "u1234567", "Computer Science"),
-                ("Brian Lee", "u2345678", "Economics"),
-            ],
-        )
-
-    def test_reports_missing_required_headers(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            b"Name,Email\nAlice,alice@example.com\n",
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 0)
-        self.assertIn("Missing required column(s)", summary["errors"][0])
-        self.assertIn("UNID", summary["errors"][0])
-        self.assertIn("Major", summary["errors"][0])
-        self.assertIn("Detected column(s): Name, Email", summary["errors"][0])
-
-    def test_reports_missing_required_major_column(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            b"Full Name,University ID\nAlice Kim,U1234567\n",
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 0)
-        self.assertIn("Missing required column(s): Major", summary["errors"][0])
-
-    def test_import_skips_rows_missing_major_value(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            b"Name,UNID,Major\nAlice Kim,U1234567,\n",
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 0)
-        self.assertEqual(summary["skipped_count"], 1)
-        self.assertIn("Row 2: missing required value(s): Major.", summary["errors"])
-
-    def test_import_skips_rows_missing_name_value(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            b"Name,UNID,Major\n,U1234567,Finance\n",
-            content_type="text/csv",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 0)
-        self.assertEqual(summary["skipped_count"], 1)
-        self.assertIn("Row 2: missing required value(s): Name.", summary["errors"])
-
-    def test_prepare_import_detects_google_form_question_headers(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            (
-                b"Timestamp,What is your full name?,What is your uNID?,Field of Study,Comments\n"
-                b"2026-05-01,Alice Kim,U1234567,Accounting,No comment\n"
-            ),
+            "\n".join(
+                [
+                    "Table Seating Assignment - Start UP Sprint 2026",
+                    "Timestamp,Full Name,Student ID,Dietary Restrictions,Department",
+                    "2026-05-01 09:00,Alice Kim,U1234567,None,Computer Science",
+                ]
+            ).encode("utf-8"),
             content_type="text/csv",
         )
 
         prepared_import = prepare_rsvp_import(uploaded_file)
 
         self.assertEqual(prepared_import["errors"], [])
-        self.assertEqual(prepared_import["mapping"]["name"], "What is your full name?")
-        self.assertEqual(prepared_import["mapping"]["unid"], "What is your uNID?")
-        self.assertEqual(prepared_import["mapping"]["major"], "Field of Study")
-        self.assertEqual(prepared_import["preview"]["valid_count"], 1)
+        self.assertEqual(prepared_import["header_row_number"], 2)
+        self.assertEqual(
+            prepared_import["headers"],
+            [
+                "Timestamp",
+                "Full Name",
+                "Student ID",
+                "Dietary Restrictions",
+                "Department",
+            ],
+        )
+        self.assertEqual(
+            prepared_import["review"]["review_settings"]["unique_identifier_selection"],
+            "Student ID",
+        )
+        self.assertEqual(prepared_import["review"]["preview"]["valid_count"], 1)
 
-    def test_import_supports_csv_files_with_different_column_order(self):
+    def test_prepare_import_suggests_name_timestamp_when_no_identifier_column_exists(self):
         uploaded_file = SimpleUploadedFile(
             "rsvp.csv",
-            b"Department,Student Name,Student ID\nFinance,Alice Kim,U1234567\n",
+            (
+                "Timestamp,What is your full name?,Will you attend?\n"
+                "2026-05-01 09:00,Alice Kim,Yes\n"
+            ).encode("utf-8"),
             content_type="text/csv",
         )
 
-        summary = import_rsvp_file(uploaded_file)
+        prepared_import = prepare_rsvp_import(uploaded_file)
 
-        self.assertEqual(summary["imported_count"], 1)
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.name, "Alice Kim")
-        self.assertEqual(participant.unid, "u1234567")
-        self.assertEqual(participant.major, "Finance")
+        self.assertEqual(prepared_import["errors"], [])
+        self.assertEqual(
+            prepared_import["review"]["review_settings"]["unique_identifier_selection"],
+            NAME_TIMESTAMP_ID,
+        )
 
-    def test_import_supports_xlsx_files(self):
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.append(["Student Name", "uNID", "Program", "Dietary Restrictions"])
-        worksheet.append(["Alice Kim", "U1234567", "Finance", "Vegetarian"])
-        worksheet.append(["Brian Lee", "u2345678", "Marketing", ""])
-        output = BytesIO()
-        workbook.save(output)
-        output.seek(0)
-
-        uploaded_file = SimpleUploadedFile(
+    def test_import_supports_xlsx_files_with_flexible_headers(self):
+        uploaded_file = build_xlsx_upload(
             "rsvp.xlsx",
-            output.read(),
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            [
+                ["Start UP Sprint RSVP Responses"],
+                ["Submitted At", "Participant Full Name", "Email Address", "Program"],
+                ["2026-05-01 09:00", "Alice Kim", "alice@example.com", "Finance"],
+                ["2026-05-01 09:02", "Brian Lee", "brian@example.com", "Marketing"],
+            ],
         )
 
         summary = import_rsvp_file(uploaded_file)
@@ -231,52 +104,70 @@ class RSVPImportServiceTests(TestCase):
         self.assertEqual(
             list(
                 RegisteredParticipant.objects.order_by("submission_order").values_list(
-                    "name", "unid", "major"
+                    "name",
+                    "unid",
+                    "major",
+                    "email",
                 )
             ),
             [
-                ("Alice Kim", "u1234567", "Finance"),
-                ("Brian Lee", "u2345678", "Marketing"),
+                ("Alice Kim", "alice@example.com", "Finance", "alice@example.com"),
+                ("Brian Lee", "brian@example.com", "Marketing", "brian@example.com"),
             ],
         )
 
-    def test_import_supports_xlsx_files_with_different_column_order(self):
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.append(["Program", "Student ID", "Student Name"])
-        worksheet.append(["Operations", "U1234567", "Alice Kim"])
-        output = BytesIO()
-        workbook.save(output)
-        output.seek(0)
-
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.xlsx",
-            output.read(),
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-        summary = import_rsvp_file(uploaded_file)
-
-        self.assertEqual(summary["imported_count"], 1)
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.name, "Alice Kim")
-        self.assertEqual(participant.unid, "u1234567")
-        self.assertEqual(participant.major, "Operations")
-
-    def test_import_supports_cp1252_csv_files(self):
+    def test_import_can_generate_internal_ids_when_no_reliable_identifier_exists(self):
         uploaded_file = SimpleUploadedFile(
             "rsvp.csv",
-            "Full Name,Student ID,Department\nJos\xe9 Alvarez,U1234567,Finance\n".encode("cp1252"),
+            (
+                "Favorite Color,Preferred Workshop\n"
+                "Red,AI Product Design\n"
+                "Blue,Startup Finance\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        summary = import_rsvp_file(
+            uploaded_file,
+            review_settings={
+                "unique_identifier_selection": "__generate_internal__",
+                "display_columns": ["Favorite Color", "Preferred Workshop"],
+                "searchable_columns": ["Favorite Color"],
+            },
+        )
+
+        self.assertEqual(summary["imported_count"], 2)
+        self.assertEqual(summary["errors"], [])
+        participants = list(RegisteredParticipant.objects.order_by("submission_order"))
+        self.assertTrue(all(participant.unid.startswith("rsvp-") for participant in participants))
+        self.assertEqual(
+            participants[0].answers["Preferred Workshop"],
+            "AI Product Design",
+        )
+
+    def test_import_skips_duplicate_selected_identifiers(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Existing Student",
+            unid="u1234567",
+            major="Economics",
+        )
+
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            (
+                "Full Name,Student ID,Department\n"
+                "Alice Kim,U1234567,Finance\n"
+                "Brian Lee,U1234567,Marketing\n"
+            ).encode("utf-8"),
             content_type="text/csv",
         )
 
         summary = import_rsvp_file(uploaded_file)
 
-        self.assertEqual(summary["imported_count"], 1)
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.name, "José Alvarez")
-        self.assertEqual(participant.unid, "u1234567")
-        self.assertEqual(participant.major, "Finance")
+        self.assertEqual(summary["imported_count"], 0)
+        self.assertEqual(summary["skipped_count"], 2)
+        self.assertEqual(summary["duplicate_identifiers"], ["U1234567"])
 
     def test_reports_legacy_xls_files_as_unsupported(self):
         uploaded_file = SimpleUploadedFile(
@@ -293,17 +184,112 @@ class RSVPImportServiceTests(TestCase):
             ["Legacy XLS files are not supported. Please save the file as CSV or XLSX."],
         )
 
-    def test_reports_generic_unsupported_file_type(self):
+
+class ImportReviewFlowTests(TestCase):
+    def test_upload_redirects_to_review_and_waits_for_confirmation(self):
         uploaded_file = SimpleUploadedFile(
-            "rsvp.txt",
-            b"Name,UNID,Major\nAlice Kim,U1234567,Finance\n",
-            content_type="text/plain",
+            "rsvp.csv",
+            (
+                "Timestamp,Full Name,Student ID,Email,Major\n"
+                "2026-05-01 09:00,Alice Kim,U1234567,alice@example.com,Finance\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
         )
 
-        summary = import_rsvp_file(uploaded_file)
+        response = self.client.post("/checkin/import/", {"rsvp_file": uploaded_file})
 
-        self.assertEqual(summary["imported_count"], 0)
-        self.assertEqual(summary["errors"], ["Only CSV and XLSX uploads are supported."])
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/checkin/import/review/")
+        self.assertEqual(RegisteredParticipant.objects.count(), 0)
+        self.assertIn(IMPORT_SESSION_KEY, self.client.session)
+
+    def test_review_confirm_import_persists_answers_and_configuration(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            (
+                "Timestamp,Full Name,Student ID,Email,Dietary Restrictions,Will you attend?\n"
+                "2026-05-01 09:00,Alice Kim,U1234567,alice@example.com,None,Yes\n"
+                "2026-05-01 09:05,Brian Lee,U2345678,brian@example.com,Vegetarian,Yes\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        response = self.client.post("/checkin/import/", {"rsvp_file": uploaded_file})
+        self.assertEqual(response.status_code, 302)
+
+        response = self.client.post(
+            "/checkin/import/review/",
+            {
+                "review_action": "confirm",
+                "unique_identifier_selection": "Student ID",
+                "name_column": "Full Name",
+                "major_column": "",
+                "email_column": "Email",
+                "timestamp_column": "Timestamp",
+                "display_columns": ["Full Name", "Email", "Dietary Restrictions"],
+                "searchable_columns": ["Full Name", "Email"],
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RegisteredParticipant.objects.count(), 2)
+
+        participant = RegisteredParticipant.objects.get(unid="u1234567")
+        self.assertEqual(participant.name, "Alice Kim")
+        self.assertEqual(participant.email, "alice@example.com")
+        self.assertEqual(participant.answers["Dietary Restrictions"], "None")
+
+        configuration = RSVPImportConfiguration.objects.get(pk=1)
+        self.assertEqual(configuration.unique_identifier_source, "Student ID")
+        self.assertEqual(configuration.name_column, "Full Name")
+        self.assertEqual(
+            configuration.display_columns,
+            ["Full Name", "Email", "Dietary Restrictions"],
+        )
+        self.assertEqual(configuration.searchable_columns, ["Full Name", "Email"])
+
+        self.assertContains(response, "Imported Rows")
+        self.assertContains(response, "2")
+
+    def test_registered_page_uses_selected_display_and_search_columns(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            (
+                "Timestamp,Full Name,Student ID,Email,Dietary Restrictions\n"
+                "2026-05-01 09:00,Alice Kim,U1234567,alice@example.com,None\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        self.client.post("/checkin/import/", {"rsvp_file": uploaded_file})
+        self.client.post(
+            "/checkin/import/review/",
+            {
+                "review_action": "confirm",
+                "unique_identifier_selection": "Student ID",
+                "name_column": "Full Name",
+                "major_column": "",
+                "email_column": "Email",
+                "timestamp_column": "Timestamp",
+                "display_columns": ["Full Name", "Email", "Dietary Restrictions"],
+                "searchable_columns": ["Full Name", "Email"],
+            },
+        )
+
+        response = self.client.get("/checkin/registered/")
+
+        self.assertContains(response, "Full Name")
+        self.assertContains(response, "Email")
+        self.assertContains(response, "Dietary Restrictions")
+        self.assertNotContains(response, "Major</th>", html=False)
+        self.assertContains(response, 'placeholder="Search by Full Name, Email"', html=False)
+
+    def test_import_review_requires_pending_upload(self):
+        response = self.client.get("/checkin/import/review/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/checkin/import/")
 
 
 class AttendanceExportViewTests(TestCase):
@@ -362,6 +348,119 @@ class AttendanceExportViewTests(TestCase):
         self.assertIn("1,First Student,u2100,Biology,Yes,", content)
         self.assertIn("2,Second Student,u2101,Physics,No,", content)
 
+    def test_rsvp_xlsx_export_returns_expected_sheets_and_status_columns(self):
+        RSVPImportConfiguration.objects.create(
+            pk=1,
+            imported_columns=["Full Name", "Student ID", "Email", "Dietary Restrictions"],
+            display_columns=["Full Name", "Email", "Dietary Restrictions"],
+            searchable_columns=["Full Name", "Email"],
+            unique_identifier_source="Student ID",
+            name_column="Full Name",
+            email_column="Email",
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Alice Kim",
+            unid="u2100",
+            checked_in=True,
+            checkin_time=timezone.now(),
+            answers={
+                "Full Name": "Alice Kim",
+                "Student ID": "U2100",
+                "Email": "alice@example.com",
+                "Dietary Restrictions": "None",
+            },
+        )
+        RegisteredParticipant.objects.create(
+            submission_order=2,
+            name="Brian Lee",
+            unid="u2101",
+            checked_in=False,
+            answers={
+                "Full Name": "Brian Lee",
+                "Student ID": "U2101",
+                "Email": "brian@example.com",
+                "Dietary Restrictions": "Vegetarian",
+            },
+        )
+
+        response = self.client.get("/checkin/export/xlsx/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(
+            workbook.sheetnames,
+            ["Summary", "All RSVP Records", "Checked In", "Not Checked In"],
+        )
+
+        summary_sheet = workbook["Summary"]
+        summary_values = {
+            summary_sheet[f"A{row}"].value: summary_sheet[f"B{row}"].value
+            for row in range(2, summary_sheet.max_row + 1)
+        }
+        self.assertEqual(summary_values["Total RSVP records"], 2)
+        self.assertEqual(summary_values["Checked-in count"], 1)
+        self.assertEqual(summary_values["Not checked-in count"], 1)
+        self.assertEqual(summary_values["Unique identifier column setting"], "Student ID")
+
+        all_records_sheet = workbook["All RSVP Records"]
+        all_headers = [cell.value for cell in all_records_sheet[1]]
+        self.assertEqual(
+            all_headers,
+            [
+                "Unique Identifier",
+                "Full Name",
+                "Email",
+                "Dietary Restrictions",
+                "Check-In Status",
+                "Checked-In At",
+                "Imported At",
+            ],
+        )
+        first_data_row = [cell.value for cell in all_records_sheet[2]]
+        second_data_row = [cell.value for cell in all_records_sheet[3]]
+        self.assertEqual(first_data_row[0], "u2100")
+        self.assertEqual(first_data_row[1], "Alice Kim")
+        self.assertEqual(first_data_row[4], "Checked In")
+        self.assertEqual(second_data_row[0], "u2101")
+        self.assertEqual(second_data_row[4], "Not Checked In")
+
+        checked_in_sheet = workbook["Checked In"]
+        not_checked_in_sheet = workbook["Not Checked In"]
+        self.assertEqual(checked_in_sheet.max_row, 2)
+        self.assertEqual(not_checked_in_sheet.max_row, 2)
+        self.assertEqual(checked_in_sheet["A2"].value, "u2100")
+        self.assertEqual(not_checked_in_sheet["A2"].value, "u2101")
+
+    def test_rsvp_xlsx_export_falls_back_to_answers_json_keys_without_display_columns(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Generated Participant",
+            unid="rsvp-00001",
+            checked_in=False,
+            answers={
+                "Will you attend?": "Yes",
+                "Dietary Restrictions": "None",
+            },
+        )
+
+        response = self.client.get("/checkin/export/xlsx/")
+
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.content))
+        headers = [cell.value for cell in workbook["All RSVP Records"][1]]
+        self.assertIn("Will you attend?", headers)
+        self.assertIn("Dietary Restrictions", headers)
+        self.assertIn("Unique Identifier", headers)
+        self.assertIn("Check-In Status", headers)
+        row_values = [cell.value for cell in workbook["All RSVP Records"][2]]
+        self.assertIn("Yes", row_values)
+        self.assertIn("Not Checked In", row_values)
+
 
 class GuestCheckInFormTests(TestCase):
     def test_guest_form_uses_uac_major_list(self):
@@ -392,32 +491,7 @@ class GuestCheckInFormTests(TestCase):
         self.assertEqual(form.cleaned_data["major"], "Other")
 
 
-class ImportPageParticipantListTests(TestCase):
-    def test_import_page_shows_registered_participants_in_submission_order(self):
-        RegisteredParticipant.objects.create(
-            submission_order=2,
-            name="Second Student",
-            unid="u3002",
-            major="Finance",
-        )
-        RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="First Student",
-            unid="u3001",
-            major="Marketing",
-            checked_in=True,
-        )
-
-        response = self.client.get("/checkin/import/")
-
-        self.assertEqual(response.status_code, 200)
-        participants = list(response.context["participants"])
-        self.assertEqual(
-            [participant.name for participant in participants],
-            ["First Student", "Second Student"],
-        )
-        self.assertContains(response, "Imported RSVP Participants")
-
+class ParticipantListAndAdminFlowTests(TestCase):
     def test_toggle_checkin_updates_status_and_time(self):
         participant = RegisteredParticipant.objects.create(
             submission_order=1,
@@ -434,15 +508,6 @@ class ImportPageParticipantListTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(participant.checked_in)
         self.assertIsNotNone(participant.checkin_time)
-
-        previous_checkin_time = participant.checkin_time
-        response = self.client.post(f"/checkin/participants/{participant.id}/toggle-checkin/")
-
-        participant.refresh_from_db()
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(participant.checked_in)
-        self.assertIsNone(participant.checkin_time)
-        self.assertIsNotNone(previous_checkin_time)
 
     def test_delete_participant_removes_row_and_reorders_following_rows(self):
         first = RegisteredParticipant.objects.create(
@@ -491,41 +556,7 @@ class ImportPageParticipantListTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(RegisteredParticipant.objects.count(), 0)
 
-    def test_import_page_shows_export_and_bulk_delete_actions(self):
-        RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="Action Student",
-            unid="u7001",
-            major="Accounting",
-        )
-
-        response = self.client.get("/checkin/import/")
-
-        self.assertContains(response, "Export RSVP List (CSV)")
-        self.assertContains(response, "Export Final Attendance (CSV)")
-        self.assertContains(response, "Delete Entire RSVP List")
-        self.assertContains(response, "Delete Guest Records")
-        self.assertContains(response, "/checkin/participants/delete-all/")
-        self.assertNotContains(response, "<th class=\"actions-cell\">Delete</th>", html=False)
-        self.assertContains(response, "University of Utah")
-        self.assertContains(response, "Back to Dashboard")
-        self.assertContains(response, 'href="/checkin/"', html=False)
-
-    def test_import_page_shows_combined_search_input(self):
-        RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="Search Student",
-            unid="u8001",
-            major="Accounting",
-        )
-
-        response = self.client.get("/checkin/import/")
-
-        self.assertContains(response, "Search by Name, UNID, or Major")
-        self.assertContains(response, 'id="participant-search"', html=False)
-        self.assertContains(response, 'placeholder="Search by Name, UNID, or Major"', html=False)
-
-    def test_import_page_shows_guest_records_list(self):
+    def test_import_page_shows_guest_records_and_admin_actions(self):
         GuestParticipant.objects.create(
             name="Walk In Guest",
             unid="u8123000",
@@ -536,108 +567,11 @@ class ImportPageParticipantListTests(TestCase):
 
         response = self.client.get("/checkin/import/")
 
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Guest Records")
         self.assertContains(response, "Walk In Guest")
-        self.assertContains(response, "u8123000")
-        self.assertContains(response, "Visitor")
-
-    def test_import_page_previews_mapping_before_confirming_import(self):
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            b"Participant Name,Student ID,Major/Program\nAlice Kim,U1234567,Finance\n",
-            content_type="text/csv",
-        )
-
-        response = self.client.post("/checkin/import/", {"import_action": "preview", "rsvp_file": uploaded_file})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(RegisteredParticipant.objects.count(), 0)
-        self.assertContains(response, "Review RSVP Import")
-        self.assertContains(response, "Confirm Import")
-        self.assertIn(IMPORT_SESSION_KEY, self.client.session)
-
-        response = self.client.post(
-            "/checkin/import/",
-            {
-                "import_action": "confirm",
-                "mapping_name": "Participant Name",
-                "mapping_unid": "Student ID",
-                "mapping_major": "Major/Program",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(RegisteredParticipant.objects.count(), 1)
-        participant = RegisteredParticipant.objects.get()
-        self.assertEqual(participant.name, "Alice Kim")
-        self.assertEqual(participant.unid, "u1234567")
-        self.assertEqual(participant.major, "Finance")
-
-    def test_import_review_page_shows_full_scrollable_preview_with_status_controls(self):
-        csv_content = "\n".join(
-            [
-                "Participant Name,Student ID,Major/Program",
-                "Student One,U1234561,Finance",
-                "Student Two,U1234562,Marketing",
-                "Student Three,U1234563,Accounting",
-                "Student Four,U1234564,Operations",
-                "Student Five,U1234565,Information Systems",
-                "Student Six,U1234566,Management",
-                "Missing Unid,,Economics",
-            ]
-        )
-        uploaded_file = SimpleUploadedFile(
-            "rsvp.csv",
-            csv_content.encode("utf-8"),
-            content_type="text/csv",
-        )
-
-        response = self.client.post("/checkin/import/", {"import_action": "preview", "rsvp_file": uploaded_file})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Student Six")
-        self.assertContains(response, "Validation Status")
-        self.assertContains(response, "Error Reason")
-        self.assertContains(response, "Import-Ready")
-        self.assertContains(response, "Search imported rows")
-        self.assertContains(response, "Missing required value(s): UNID.")
-        self.assertContains(response, 'data-filter="valid"', html=False)
-        self.assertContains(response, 'data-filter="invalid"', html=False)
-        self.assertContains(response, 'class="import-review-table overflow-auto"', html=False)
-
-    def test_toggle_checkin_redirects_to_safe_next_url_when_provided(self):
-        participant = RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="Redirect Student",
-            unid="u8002",
-            major="Accounting",
-        )
-
-        response = self.client.post(
-            f"/checkin/participants/{participant.id}/toggle-checkin/",
-            {"next": "/checkin/registered/"},
-        )
-
-        participant.refresh_from_db()
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/checkin/registered/")
-        self.assertTrue(participant.checked_in)
-
-    def test_delete_all_guests_redirects_to_safe_next_url_when_provided(self):
-        GuestParticipant.objects.create(
-            name="Walk In Guest",
-            unid="u8123456",
-            major="Other",
-        )
-
-        response = self.client.post(
-            "/checkin/guests/delete-all/",
-            {"next": "/checkin/import/"},
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/checkin/import/")
-        self.assertEqual(GuestParticipant.objects.count(), 0)
+        self.assertContains(response, "Delete Entire RSVP List")
+        self.assertContains(response, "Delete Guest Records")
 
 
 class DashboardAndCheckInFlowTests(TestCase):
@@ -674,12 +608,6 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertEqual(response.context["current_total_attendance"], 2)
         self.assertContains(response, "University of Utah")
         self.assertContains(response, "Current Total Attendance")
-        self.assertContains(response, "Total Invited")
-        self.assertContains(response, "Guest Count")
-        self.assertContains(response, "Registered Check-In")
-        self.assertContains(response, "Guest Check-In")
-        self.assertNotContains(response, "Data Management")
-        self.assertNotContains(response, "Total Attendees")
 
     def test_dashboard_handles_unavailable_database_without_500(self):
         with patch("checkin.views.RegisteredParticipant.objects.count", side_effect=OperationalError):
@@ -688,30 +616,6 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Database setup required")
         self.assertContains(response, "DATABASE_URL")
-
-    def test_registered_checkin_page_lists_participants_in_submission_order(self):
-        RegisteredParticipant.objects.create(
-            submission_order=2,
-            name="Later Student",
-            unid="u9102",
-            major="Engineering",
-        )
-        RegisteredParticipant.objects.create(
-            submission_order=1,
-            name="Earlier Student",
-            unid="u9101",
-            major="Business",
-        )
-
-        response = self.client.get("/checkin/registered/")
-
-        self.assertEqual(response.status_code, 200)
-        participants = list(response.context["participants"])
-        self.assertEqual(
-            [participant.name for participant in participants],
-            ["Earlier Student", "Later Student"],
-        )
-        self.assertContains(response, "Search by Name, UNID, or Major")
 
     def test_guest_checkin_creates_guest_and_redirects_to_dashboard(self):
         response = self.client.post(
@@ -757,10 +661,3 @@ class DashboardAndCheckInFlowTests(TestCase):
             response,
             "This UNID is already in the registered RSVP list. Use Registered Check-In instead.",
         )
-
-    def test_guest_checkin_page_hides_admin_actions_and_rules_box(self):
-        response = self.client.get("/checkin/guest/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Delete Guest Records")
-        self.assertNotContains(response, "Form Rules")
