@@ -433,6 +433,7 @@ def normalize_review_settings(review_settings, headers, detection):
         review_settings.get("searchable_columns", defaults["searchable_columns"]),
         headers,
     )
+    searchable_columns = [column for column in searchable_columns if column in display_columns]
     if not searchable_columns:
         searchable_columns = display_columns[:]
 
@@ -613,7 +614,7 @@ def prepare_rsvp_import(uploaded_file, review_settings=None):
 
 def save_import_configuration(review_settings, headers):
     configuration, _ = RSVPImportConfiguration.objects.get_or_create(pk=1)
-    configuration.imported_columns = headers[:]
+    configuration.imported_columns = review_settings["display_columns"][:]
     configuration.display_columns = review_settings["display_columns"]
     configuration.searchable_columns = review_settings["searchable_columns"]
     configuration.unique_identifier_strategy = review_settings["unique_identifier_strategy"]
@@ -762,6 +763,7 @@ def import_rsvp_rows(rows, headers, detection, review_settings):
         RegisteredParticipant.objects.aggregate(max_order=Max("submission_order"))["max_order"] or 0
     )
     participants_to_create = []
+    selected_columns = normalized_settings["display_columns"][:]
 
     for row in rows:
         candidate_submission_order = next_submission_order + 1
@@ -785,14 +787,27 @@ def import_rsvp_rows(rows, headers, detection, review_settings):
 
         answers = {
             header: row.get(header, "")
-            for header in headers
+            for header in selected_columns
         }
-        name_value = _clean_cell(row.get(normalized_settings["name_column"]))
-        major_value = _clean_cell(row.get(normalized_settings["major_column"]))
-        email_value = _clean_cell(row.get(normalized_settings["email_column"]))
+        name_value = (
+            _clean_cell(row.get(normalized_settings["name_column"]))
+            if normalized_settings["name_column"] in selected_columns
+            else ""
+        )
+        major_value = (
+            _clean_cell(row.get(normalized_settings["major_column"]))
+            if normalized_settings["major_column"] in selected_columns
+            else ""
+        )
+        email_value = (
+            _clean_cell(row.get(normalized_settings["email_column"]))
+            if normalized_settings["email_column"] in selected_columns
+            else ""
+        )
 
         participant_display_name = (
             name_value
+            or _clean_cell(row.get(selected_columns[0] if selected_columns else ""))
             or identifier_info["display_value"]
             or f"Imported Participant {candidate_submission_order}"
         )

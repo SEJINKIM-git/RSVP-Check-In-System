@@ -5,7 +5,7 @@
 {% block content %}
     <div>
         <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface">Review RSVP Import</h1>
-        <p class="mt-md max-w-3xl text-body-md text-secondary">Step 2 of 2: confirm the detected header row, choose how rows should be identified, and decide which columns belong in the RSVP check-in view.</p>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Step 2 of 2: confirm the detected header row, choose how rows should be identified, and decide which RSVP columns should be saved, displayed, analyzed, and exported.</p>
     </div>
 
     <div class="flex justify-end">
@@ -90,8 +90,8 @@
 
             <div class="grid gap-lg lg:grid-cols-2">
                 <div class="rounded-xl border border-gray-100 p-lg">
-                    <h3 class="font-lexend text-xl font-bold text-on-surface">Dashboard Display Columns</h3>
-                    <p class="mt-2 text-secondary">Only these columns will be shown in the registered RSVP tables after import.</p>
+                    <h3 class="font-lexend text-xl font-bold text-on-surface">Selected RSVP Columns</h3>
+                    <p class="mt-2 text-secondary">Only these columns will be saved from the upload and then used for the RSVP table, analysis, and XLSX export.</p>
                     <div class="mt-md grid gap-sm">
                         {% for column in review_context.detected_columns %}
                             <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
@@ -104,7 +104,7 @@
 
                 <div class="rounded-xl border border-gray-100 p-lg">
                     <h3 class="font-lexend text-xl font-bold text-on-surface">Searchable Columns</h3>
-                    <p class="mt-2 text-secondary">Search on the RSVP pages will only use the columns checked here.</p>
+                    <p class="mt-2 text-secondary">Search on the RSVP pages will only use the saved selected columns checked here.</p>
                     <div class="mt-md grid gap-sm">
                         {% for column in review_context.detected_columns %}
                             <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">

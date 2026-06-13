@@ -227,7 +227,7 @@ class ImportReviewFlowTests(TestCase):
                 "email_column": "Email",
                 "timestamp_column": "Timestamp",
                 "display_columns": ["Full Name", "Email", "Dietary Restrictions"],
-                "searchable_columns": ["Full Name", "Email"],
+                "searchable_columns": ["Full Name", "Email", "Will you attend?"],
             },
             follow=True,
         )
@@ -239,8 +239,23 @@ class ImportReviewFlowTests(TestCase):
         self.assertEqual(participant.name, "Alice Kim")
         self.assertEqual(participant.email, "alice@example.com")
         self.assertEqual(participant.answers["Dietary Restrictions"], "None")
+        self.assertEqual(
+            participant.answers,
+            {
+                "Full Name": "Alice Kim",
+                "Email": "alice@example.com",
+                "Dietary Restrictions": "None",
+            },
+        )
+        self.assertNotIn("Timestamp", participant.answers)
+        self.assertNotIn("Student ID", participant.answers)
+        self.assertNotIn("Will you attend?", participant.answers)
 
         configuration = RSVPImportConfiguration.objects.get(pk=1)
+        self.assertEqual(
+            configuration.imported_columns,
+            ["Full Name", "Email", "Dietary Restrictions"],
+        )
         self.assertEqual(configuration.unique_identifier_source, "Student ID")
         self.assertEqual(configuration.name_column, "Full Name")
         self.assertEqual(
@@ -352,8 +367,8 @@ class AttendanceExportViewTests(TestCase):
     def test_rsvp_xlsx_export_returns_full_attendance_report(self):
         RSVPImportConfiguration.objects.create(
             pk=1,
-            imported_columns=["Full Name", "Student ID", "Email", "Original Team", "Notes"],
-            display_columns=["Full Name", "Email", "Original Team"],
+            imported_columns=["Full Name", "Original Team"],
+            display_columns=["Full Name", "Original Team"],
             searchable_columns=["Full Name", "Email"],
             unique_identifier_source="Student ID",
             name_column="Full Name",
@@ -367,10 +382,7 @@ class AttendanceExportViewTests(TestCase):
             checkin_time=timezone.now(),
             answers={
                 "Full Name": "Alice Kim",
-                "Student ID": "U2100",
-                "Email": "alice@example.com",
                 "Original Team": "Blue Team",
-                "Notes": "Vegetarian meal",
             },
         )
         RegisteredParticipant.objects.create(
@@ -380,10 +392,7 @@ class AttendanceExportViewTests(TestCase):
             checked_in=False,
             answers={
                 "Full Name": "Brian Lee",
-                "Student ID": "U2101",
-                "Email": "brian@example.com",
                 "Original Team": "Gold Team",
-                "Notes": "Late arrival",
             },
         )
         GuestParticipant.objects.create(
@@ -406,12 +415,12 @@ class AttendanceExportViewTests(TestCase):
             workbook.sheetnames,
             [
                 "Summary",
-                "All Attendance Records",
-                "RSVP Checked In",
-                "RSVP Not Checked In",
-                "Guest Check-ins",
-                "Table Team Summary",
-                "Raw Imported RSVP Data",
+                "Registered Participants",
+                "Checked-In Only",
+                "No-Show",
+                "Guest Participants",
+                "Final Attendance",
+                "Data Analysis",
             ],
         )
 
@@ -420,71 +429,77 @@ class AttendanceExportViewTests(TestCase):
             summary_sheet[f"A{row}"].value: summary_sheet[f"B{row}"].value
             for row in range(2, summary_sheet.max_row + 1)
         }
-        self.assertEqual(summary_values["Total imported RSVP records"], 2)
-        self.assertEqual(summary_values["Total checked-in RSVP participants"], 1)
-        self.assertEqual(summary_values["Total RSVP not checked in / pending"], 1)
-        self.assertEqual(summary_values["Total guest check-ins"], 1)
-        self.assertEqual(summary_values["Total actual attendance"], 2)
-        self.assertEqual(summary_values["Unique identifier setting"], "Student ID")
+        self.assertEqual(summary_values["Total RSVP"], 2)
+        self.assertEqual(summary_values["Checked-in RSVP"], 1)
+        self.assertEqual(summary_values["No-show RSVP"], 1)
+        self.assertEqual(summary_values["Guest Count"], 1)
+        self.assertEqual(summary_values["Total Attendance"], 2)
+        self.assertEqual(summary_values["Selected imported column names"], "Full Name, Original Team")
 
-        all_records_sheet = workbook["All Attendance Records"]
-        all_headers = [cell.value for cell in all_records_sheet[1]]
+        registered_sheet = workbook["Registered Participants"]
+        registered_headers = [cell.value for cell in registered_sheet[1]]
         self.assertEqual(
-            all_headers,
+            registered_headers,
             [
-                "Source",
-                "Record Type",
                 "Unique Identifier",
-                "Name",
                 "Full Name",
-                "Email",
                 "Original Team",
+                "Check-In Time",
+                "Imported At",
                 "Check-In Status",
-                "Checked-In At",
-                "Imported At / Created At",
-                "Notes",
             ],
         )
-        all_rows = list(all_records_sheet.iter_rows(min_row=2, values_only=True))
-        self.assertEqual(len(all_rows), 3)
-        imported_row = all_rows[0]
-        guest_row = all_rows[2]
-        self.assertEqual(imported_row[0], "Imported RSVP")
-        self.assertEqual(imported_row[1], "RSVP")
-        self.assertEqual(imported_row[2], "u2100")
-        self.assertEqual(imported_row[3], "Alice Kim")
-        self.assertEqual(imported_row[6], "Blue Team")
-        self.assertEqual(imported_row[7], "Checked In")
-        self.assertEqual(imported_row[10], "Vegetarian meal")
-        self.assertEqual(guest_row[0], "Guest Check-in")
-        self.assertEqual(guest_row[1], "Guest")
-        self.assertEqual(guest_row[2], "g3000")
-        self.assertEqual(guest_row[3], "Walk In Guest")
-        self.assertEqual(guest_row[7], "Checked In")
+        self.assertNotIn("Email", registered_headers)
+        self.assertNotIn("Notes", registered_headers)
+        registered_rows = list(registered_sheet.iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(registered_rows), 2)
+        self.assertEqual(registered_rows[0][0], "u2100")
+        self.assertEqual(registered_rows[0][1], "Alice Kim")
+        self.assertEqual(registered_rows[0][2], "Blue Team")
+        self.assertEqual(registered_rows[0][-1], "Checked In")
+        self.assertEqual(registered_rows[1][-1], "No Show")
 
-        checked_in_sheet = workbook["RSVP Checked In"]
-        not_checked_in_sheet = workbook["RSVP Not Checked In"]
+        checked_in_sheet = workbook["Checked-In Only"]
+        not_checked_in_sheet = workbook["No-Show"]
         self.assertEqual(checked_in_sheet.max_row, 2)
         self.assertEqual(not_checked_in_sheet.max_row, 2)
         self.assertEqual(checked_in_sheet["A2"].value, "u2100")
         self.assertEqual(not_checked_in_sheet["A2"].value, "u2101")
 
-        guest_sheet = workbook["Guest Check-ins"]
+        guest_sheet = workbook["Guest Participants"]
         self.assertEqual(guest_sheet.max_row, 2)
-        self.assertEqual(guest_sheet["A2"].value, "Guest Check-in")
-        self.assertEqual(guest_sheet["C2"].value, "Walk In Guest")
+        self.assertEqual(guest_sheet["A2"].value, "Walk In Guest")
+        self.assertEqual(guest_sheet["B2"].value, "g3000")
+        self.assertEqual(guest_sheet["F2"].value, "Checked In")
 
-        summary_sheet = workbook["Table Team Summary"]
-        self.assertEqual(summary_sheet["A1"].value, "Original Team")
-        self.assertEqual(summary_sheet["A2"].value, "Blue Team")
-        self.assertEqual(summary_sheet["A3"].value, "Gold Team")
+        final_attendance_sheet = workbook["Final Attendance"]
+        final_headers = [cell.value for cell in final_attendance_sheet[1]]
+        self.assertEqual(
+            final_headers,
+            [
+                "Type",
+                "Unique Identifier",
+                "Full Name",
+                "Original Team",
+                "Check-In Time",
+                "Attendance Status",
+            ],
+        )
+        final_rows = list(final_attendance_sheet.iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(final_rows), 2)
+        self.assertEqual(final_rows[0][0], "Registered")
+        self.assertEqual(final_rows[0][1], "u2100")
+        self.assertEqual(final_rows[0][2], "Alice Kim")
+        self.assertEqual(final_rows[0][-1], "Present")
+        self.assertEqual(final_rows[1][0], "Guest")
+        self.assertEqual(final_rows[1][1], "g3000")
+        self.assertEqual(final_rows[1][2], "Walk In Guest")
+        self.assertEqual(final_rows[1][-1], "Present")
 
-        raw_sheet = workbook["Raw Imported RSVP Data"]
-        raw_headers = [cell.value for cell in raw_sheet[1]]
-        self.assertIn("Original Team", raw_headers)
-        self.assertIn("Notes", raw_headers)
-        raw_first_row = [cell.value for cell in raw_sheet[2]]
-        self.assertIn("Vegetarian meal", raw_first_row)
+        analysis_rows = list(workbook["Data Analysis"].iter_rows(values_only=True))
+        self.assertIn(("Original Team", "RSVP Count", "Checked-in Count", "No-show Count"), analysis_rows)
+        self.assertIn(("Blue Team", 1, 1, 0), analysis_rows)
+        self.assertIn(("Gold Team", 1, 0, 1), analysis_rows)
 
     def test_rsvp_xlsx_export_falls_back_to_answers_json_keys_without_display_columns(self):
         RegisteredParticipant.objects.create(
@@ -503,20 +518,20 @@ class AttendanceExportViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         workbook = load_workbook(BytesIO(response.content))
-        headers = [cell.value for cell in workbook["All Attendance Records"][1]]
+        headers = [cell.value for cell in workbook["Registered Participants"][1]]
         self.assertIn("Will you attend?", headers)
         self.assertIn("Dietary Restrictions", headers)
         self.assertIn("Table", headers)
         self.assertIn("Unique Identifier", headers)
         self.assertIn("Check-In Status", headers)
-        row_values = [cell.value for cell in workbook["All Attendance Records"][2]]
+        row_values = [cell.value for cell in workbook["Registered Participants"][2]]
         self.assertIn("Yes", row_values)
-        self.assertIn("Pending", row_values)
+        self.assertIn("No Show", row_values)
         self.assertIn("A1", row_values)
 
-        raw_headers = [cell.value for cell in workbook["Raw Imported RSVP Data"][1]]
-        self.assertIn("Will you attend?", raw_headers)
-        self.assertIn("Table", raw_headers)
+        analysis_rows = list(workbook["Data Analysis"].iter_rows(values_only=True))
+        self.assertIn(("Table", "RSVP Count", "Checked-in Count", "No-show Count"), analysis_rows)
+        self.assertIn(("A1", 1, 0, 1), analysis_rows)
 
 
 class GuestCheckInFormTests(TestCase):

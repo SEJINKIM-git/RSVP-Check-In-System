@@ -2,7 +2,6 @@ import csv
 import io
 import re
 
-from django.conf import settings
 from django.http import HttpResponse
 from django.utils import timezone
 
@@ -32,38 +31,31 @@ RSVP_EXPORT_HEADERS = [
     "Check-in Time",
 ]
 
-NOTE_COLUMN_CANDIDATES = (
-    "notes",
-    "note",
-    "comments",
-    "comment",
-    "remarks",
-    "remark",
-    "special request",
-    "special requests",
-)
-
 GROUPING_COLUMN_CANDIDATES = (
-    "table",
+    "major",
+    "department",
+    "school",
+    "program",
+    "college",
     "team",
-    "original team",
+    "table",
     "group",
-    "role",
 )
 
-XLSX_EXPORT_FILENAME = "full_attendance_report.xlsx"
+XLSX_EXPORT_FILENAME = "rsvp_attendance_export.xlsx"
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 HEADER_FONT = Font(bold=True)
-FALLBACK_EVENT_NAME = "Spring 2026 RSVP Check-In System"
 
 
-def _format_checkin_time(value):
-    return value.isoformat(sep=" ", timespec="seconds") if value else ""
+def _format_datetime(value):
+    if not value:
+        return ""
+    return timezone.localtime(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _format_percentage(numerator, denominator):
     if not denominator:
-        return "0%"
+        return "0.0%"
     return f"{(numerator / denominator) * 100:.1f}%"
 
 
@@ -90,35 +82,6 @@ def _dedupe_preserve_order(values):
     return result
 
 
-def _get_event_name():
-    for setting_name in ("CHECKIN_EVENT_NAME", "RSVP_EVENT_NAME", "EVENT_NAME"):
-        value = getattr(settings, setting_name, "")
-        if value:
-            return value
-    return FALLBACK_EVENT_NAME
-
-
-def _resolve_rsvp_export_columns(participants, configuration_snapshot, configuration):
-    if configuration and configuration.display_columns:
-        return configuration_snapshot.get("display_columns", [])
-
-    answer_keys = _collect_answer_keys(participants)
-    if answer_keys:
-        return answer_keys
-
-    return configuration_snapshot.get("display_columns") or configuration_snapshot.get("imported_columns") or [
-        "Name",
-        "UNID",
-        "Major",
-    ]
-
-
-def _resolve_searchable_columns(configuration_snapshot, configuration, export_columns):
-    if configuration and configuration.searchable_columns:
-        return configuration_snapshot.get("searchable_columns", [])
-    return export_columns
-
-
 def _collect_answer_keys(participants, preferred_columns=None):
     columns = []
     seen = set()
@@ -139,179 +102,162 @@ def _collect_answer_keys(participants, preferred_columns=None):
     return columns
 
 
-def _resolve_raw_import_columns(participants, configuration_snapshot):
-    raw_columns = _collect_answer_keys(
-        participants,
-        preferred_columns=configuration_snapshot.get("imported_columns") or configuration_snapshot.get("display_columns"),
-    )
-    if raw_columns:
-        return raw_columns
+def _resolve_selected_columns(participants, configuration_snapshot, has_saved_configuration):
+    configured_columns = _dedupe_preserve_order(configuration_snapshot.get("display_columns") or [])
+    if has_saved_configuration and configured_columns:
+        return configured_columns
 
-    return ["Name", "UNID", "Major", "Email"]
+    answer_keys = _collect_answer_keys(participants)
+    if answer_keys:
+        return answer_keys
 
+    configured_columns = _dedupe_preserve_order(configuration_snapshot.get("imported_columns") or [])
+    if configured_columns:
+        return configured_columns
 
-def _get_answer_value(answers, column_name):
-    return answers.get(column_name, "") if column_name else ""
-
-
-def _get_rsvp_name(participant, answers, configuration_snapshot):
-    configured_name_column = configuration_snapshot.get("name_column")
-    if configured_name_column and answers.get(configured_name_column):
-        return answers[configured_name_column]
-    return answers.get("Name") or participant.name or ""
+    return ["Name", "UNID", "Major"]
 
 
-def _extract_notes_value(answers):
-    for key, value in answers.items():
-        normalized_key = _normalize_label(key)
-        if any(candidate in normalized_key for candidate in NOTE_COLUMN_CANDIDATES):
-            cleaned = str(value or "").strip()
-            if cleaned:
-                return cleaned
-    return ""
+def _needs_unique_identifier_column(selected_columns, configuration_snapshot):
+    if configuration_snapshot.get("unique_identifier_strategy") != "column":
+        return True
+
+    identifier_source = configuration_snapshot.get("unique_identifier_source", "")
+    if not identifier_source:
+        return True
+
+    return identifier_source not in selected_columns
+
+
+def _participant_answers(participant, configuration_snapshot):
+    return build_participant_answers(participant, configuration_snapshot)
+
+
+def _participant_value(participant, column_name, configuration_snapshot):
+    return _participant_answers(participant, configuration_snapshot).get(column_name, "")
 
 
 def _guess_guest_value_for_column(column_name, guest):
     normalized = _normalize_label(column_name)
     if "name" in normalized:
         return guest.name
-    if any(token in normalized for token in ("unid", "student id", "uid", "id", "identifier")):
+    if any(token in normalized for token in ("unid", "student id", "uid", "identifier", "id number")):
         return guest.unid
-    if any(token in normalized for token in ("major", "department", "program", "affiliation")):
+    if any(token in normalized for token in ("major", "department", "school", "program", "college")):
         return guest.major
     return ""
 
 
-def _build_all_attendance_headers(export_columns):
-    return [
-        "Source",
-        "Record Type",
-        "Unique Identifier",
-        "Name",
-        *export_columns,
-        "Check-In Status",
-        "Checked-In At",
-        "Imported At / Created At",
-        "Notes",
-    ]
+def _build_registered_headers(selected_columns, include_unique_identifier):
+    headers = []
+    if include_unique_identifier:
+        headers.append("Unique Identifier")
+    headers.extend(selected_columns)
+    headers.extend(["Check-In Time", "Imported At", "Check-In Status"])
+    return headers
 
 
-def _build_rsvp_only_headers(export_columns):
-    return [
-        "Unique Identifier",
-        "Name",
-        *export_columns,
-        "Check-In Status",
-        "Checked-In At",
-        "Imported At",
-    ]
+def _build_registered_row(participant, selected_columns, include_unique_identifier, configuration_snapshot):
+    row = []
+    if include_unique_identifier:
+        row.append(participant.unid)
+    row.extend(
+        _participant_value(participant, column_name, configuration_snapshot)
+        for column_name in selected_columns
+    )
+    row.extend(
+        [
+            _format_datetime(participant.checkin_time),
+            _format_datetime(participant.created_at),
+            "Checked In" if participant.checked_in else "No Show",
+        ]
+    )
+    return row
 
 
 def _build_guest_headers():
-    return [
-        "Source",
-        "Record Type",
-        "Guest Name",
-        "Guest UNID",
-        "Email",
-        "Major",
-        "Checked-In Status",
-        "Checked-In At",
-        "Created At",
-        "Notes",
-    ]
-
-
-def _build_raw_import_headers(raw_columns):
-    return [
-        "Unique Identifier",
-        *raw_columns,
-        "Check-In Status",
-        "Checked-In At",
-        "Imported At",
-    ]
-
-
-def _build_all_attendance_rsvp_row(participant, export_columns, configuration_snapshot):
-    answers = build_participant_answers(participant, configuration_snapshot)
-    return [
-        "Imported RSVP",
-        "RSVP",
-        participant.unid,
-        _get_rsvp_name(participant, answers, configuration_snapshot),
-        *[_get_answer_value(answers, column) for column in export_columns],
-        "Checked In" if participant.checked_in else "Pending",
-        _format_checkin_time(participant.checkin_time),
-        _format_checkin_time(participant.created_at),
-        _extract_notes_value(answers),
-    ]
-
-
-def _build_all_attendance_guest_row(guest, export_columns):
-    return [
-        "Guest Check-in",
-        "Guest",
-        guest.unid,
-        guest.name,
-        *[_guess_guest_value_for_column(column, guest) for column in export_columns],
-        "Checked In" if guest.checked_in else "Pending",
-        _format_checkin_time(guest.checkin_time),
-        _format_checkin_time(guest.created_at),
-        "",
-    ]
-
-
-def _build_rsvp_only_row(participant, export_columns, configuration_snapshot):
-    answers = build_participant_answers(participant, configuration_snapshot)
-    return [
-        participant.unid,
-        _get_rsvp_name(participant, answers, configuration_snapshot),
-        *[_get_answer_value(answers, column) for column in export_columns],
-        "Checked In" if participant.checked_in else "Pending",
-        _format_checkin_time(participant.checkin_time),
-        _format_checkin_time(participant.created_at),
-    ]
+    return ["Name", "UNID", "Major", "Created At", "Check-In Time", "Guest Status"]
 
 
 def _build_guest_row(guest):
     return [
-        "Guest Check-in",
-        "Guest",
         guest.name,
         guest.unid,
-        "",
         guest.major,
+        _format_datetime(guest.created_at),
+        _format_datetime(guest.checkin_time),
         "Checked In" if guest.checked_in else "Pending",
-        _format_checkin_time(guest.checkin_time),
-        _format_checkin_time(guest.created_at),
-        "",
     ]
 
 
-def _build_raw_import_row(participant, raw_columns, configuration_snapshot):
-    answers = build_participant_answers(participant, configuration_snapshot)
-    return [
-        participant.unid,
-        *[_get_answer_value(answers, column) for column in raw_columns],
-        "Checked In" if participant.checked_in else "Pending",
-        _format_checkin_time(participant.checkin_time),
-        _format_checkin_time(participant.created_at),
-    ]
+def _build_final_attendance_headers(selected_columns, include_unique_identifier):
+    headers = ["Type"]
+    if include_unique_identifier:
+        headers.append("Unique Identifier")
+    headers.extend(selected_columns)
+    headers.extend(["Check-In Time", "Attendance Status"])
+    return headers
 
 
-def _detect_grouping_column(participants, configuration_snapshot):
-    candidate_columns = _collect_answer_keys(
-        participants,
-        preferred_columns=configuration_snapshot.get("imported_columns") or configuration_snapshot.get("display_columns"),
+def _build_final_registered_row(participant, selected_columns, include_unique_identifier, configuration_snapshot):
+    row = ["Registered"]
+    if include_unique_identifier:
+        row.append(participant.unid)
+    row.extend(
+        _participant_value(participant, column_name, configuration_snapshot)
+        for column_name in selected_columns
     )
-    normalized_pairs = [(column, _normalize_label(column)) for column in candidate_columns]
+    row.extend([_format_datetime(participant.checkin_time), "Present"])
+    return row
+
+
+def _build_final_guest_row(guest, selected_columns, include_unique_identifier):
+    row = ["Guest"]
+    if include_unique_identifier:
+        row.append(guest.unid)
+    row.extend(_guess_guest_value_for_column(column_name, guest) for column_name in selected_columns)
+    row.extend(
+        [
+            _format_datetime(guest.checkin_time or guest.created_at),
+            "Present" if guest.checked_in else "Pending",
+        ]
+    )
+    return row
+
+
+def _grouped_analysis_rows(participants, selected_columns, configuration_snapshot):
+    normalized_columns = [
+        (column_name, _normalize_label(column_name))
+        for column_name in selected_columns
+    ]
+    grouping_column = ""
 
     for candidate in GROUPING_COLUMN_CANDIDATES:
-        for column, normalized in normalized_pairs:
-            if candidate in normalized:
-                return column
+        for column_name, normalized_name in normalized_columns:
+            if candidate in normalized_name:
+                grouping_column = column_name
+                break
+        if grouping_column:
+            break
 
-    return ""
+    if not grouping_column:
+        return ""
+
+    grouped_stats = {}
+    for participant in participants:
+        group_value = _participant_value(participant, grouping_column, configuration_snapshot) or "Unspecified"
+        stats = grouped_stats.setdefault(group_value, {"total": 0, "checked_in": 0})
+        stats["total"] += 1
+        if participant.checked_in:
+            stats["checked_in"] += 1
+
+    grouped_rows = []
+    for group_value in sorted(grouped_stats):
+        stats = grouped_stats[group_value]
+        no_show_count = stats["total"] - stats["checked_in"]
+        grouped_rows.append([group_value, stats["total"], stats["checked_in"], no_show_count])
+
+    return grouping_column, grouped_rows
 
 
 def _style_header_row(worksheet):
@@ -336,70 +282,37 @@ def _finalize_data_sheet(worksheet):
     _autosize_columns(worksheet)
 
 
-def _add_summary_sheet(workbook, participants, guest_participants, configuration, configuration_snapshot, export_columns):
+def _add_summary_sheet(workbook, participants, guest_participants, selected_columns):
     worksheet = workbook.create_sheet("Summary")
-    total_rsvp_records = len(participants)
+    total_rsvp = len(participants)
     checked_in_rsvp = sum(1 for participant in participants if participant.checked_in)
-    pending_rsvp = total_rsvp_records - checked_in_rsvp
-    total_guest_checkins = len(guest_participants)
-    total_actual_attendance = checked_in_rsvp + total_guest_checkins
-    searchable_columns = _resolve_searchable_columns(
-        configuration_snapshot,
-        configuration,
-        export_columns,
-    )
-    configuration_label = f"ID {configuration.id}" if configuration else "Not available"
+    no_show_rsvp = total_rsvp - checked_in_rsvp
+    guest_count = len(guest_participants)
+    total_attendance = checked_in_rsvp + guest_count
 
-    summary_rows = [
-        ("Metric", "Value"),
-        ("Event name", _get_event_name()),
-        ("Export generated timestamp", _format_checkin_time(timezone.localtime())),
-        ("Total imported RSVP records", total_rsvp_records),
-        ("Total checked-in RSVP participants", checked_in_rsvp),
-        ("Total RSVP not checked in / pending", pending_rsvp),
-        ("Total guest check-ins", total_guest_checkins),
-        ("Total actual attendance", total_actual_attendance),
-        ("RSVP check-in rate", _format_percentage(checked_in_rsvp, total_rsvp_records)),
-        ("Current import configuration", configuration_label),
-        ("Unique identifier setting", configuration_snapshot.get("identifier_label", "Unique Identifier")),
-        ("Dashboard display columns", _format_column_list(export_columns)),
-        ("Searchable columns", _format_column_list(searchable_columns)),
-    ]
-
-    for row in summary_rows:
-        worksheet.append(row)
+    worksheet.append(["Metric", "Value"])
+    worksheet.append(["Export Date", _format_datetime(timezone.now())])
+    worksheet.append(["Total RSVP", total_rsvp])
+    worksheet.append(["Checked-in RSVP", checked_in_rsvp])
+    worksheet.append(["No-show RSVP", no_show_rsvp])
+    worksheet.append(["Guest Count", guest_count])
+    worksheet.append(["Total Attendance", total_attendance])
+    worksheet.append(["RSVP Attendance Rate", _format_percentage(checked_in_rsvp, total_rsvp)])
+    worksheet.append(["Selected imported column names", _format_column_list(selected_columns)])
 
     _finalize_data_sheet(worksheet)
 
 
-def _add_all_attendance_sheet(workbook, participants, guest_participants, export_columns, configuration_snapshot):
-    worksheet = workbook.create_sheet("All Attendance Records")
-    worksheet.append(_build_all_attendance_headers(export_columns))
-
-    for participant in participants:
-        worksheet.append(
-            _build_all_attendance_rsvp_row(
-                participant,
-                export_columns,
-                configuration_snapshot,
-            )
-        )
-
-    for guest in guest_participants:
-        worksheet.append(_build_all_attendance_guest_row(guest, export_columns))
-
-    _finalize_data_sheet(worksheet)
-
-
-def _add_rsvp_sheet(workbook, sheet_name, participants, export_columns, configuration_snapshot):
+def _add_registered_sheet(workbook, sheet_name, participants, selected_columns, include_unique_identifier, configuration_snapshot):
     worksheet = workbook.create_sheet(sheet_name)
-    worksheet.append(_build_rsvp_only_headers(export_columns))
+    worksheet.append(_build_registered_headers(selected_columns, include_unique_identifier))
 
     for participant in participants:
         worksheet.append(
-            _build_rsvp_only_row(
+            _build_registered_row(
                 participant,
-                export_columns,
+                selected_columns,
+                include_unique_identifier,
                 configuration_snapshot,
             )
         )
@@ -408,7 +321,7 @@ def _add_rsvp_sheet(workbook, sheet_name, participants, export_columns, configur
 
 
 def _add_guest_sheet(workbook, guest_participants):
-    worksheet = workbook.create_sheet("Guest Check-ins")
+    worksheet = workbook.create_sheet("Guest Participants")
     worksheet.append(_build_guest_headers())
 
     for guest in guest_participants:
@@ -417,69 +330,66 @@ def _add_guest_sheet(workbook, guest_participants):
     _finalize_data_sheet(worksheet)
 
 
-def _add_table_team_summary_sheet(workbook, participants, configuration_snapshot):
-    worksheet = workbook.create_sheet("Table Team Summary")
-    grouping_column = _detect_grouping_column(participants, configuration_snapshot)
+def _add_final_attendance_sheet(workbook, checked_in_participants, guest_participants, selected_columns, include_unique_identifier, configuration_snapshot):
+    worksheet = workbook.create_sheet("Final Attendance")
+    worksheet.append(_build_final_attendance_headers(selected_columns, include_unique_identifier))
 
-    if not grouping_column:
-        worksheet.append(["Note"])
-        worksheet.append(["No table/team column detected in imported RSVP answers."])
-        _finalize_data_sheet(worksheet)
-        return
-
-    worksheet.append(
-        [
-            grouping_column,
-            "Total Assigned RSVP",
-            "RSVP Checked In",
-            "RSVP Not Checked In",
-            "Guest Added",
-            "Attendance Rate",
-        ]
-    )
-
-    grouped_counts = {}
-    for participant in participants:
-        answers = build_participant_answers(participant, configuration_snapshot)
-        group_value = answers.get(grouping_column) or "Unassigned"
-        stats = grouped_counts.setdefault(
-            group_value,
-            {"total": 0, "checked_in": 0},
-        )
-        stats["total"] += 1
-        if participant.checked_in:
-            stats["checked_in"] += 1
-
-    for group_value in sorted(grouped_counts):
-        stats = grouped_counts[group_value]
-        pending_count = stats["total"] - stats["checked_in"]
+    for participant in checked_in_participants:
         worksheet.append(
-            [
-                group_value,
-                stats["total"],
-                stats["checked_in"],
-                pending_count,
-                0,
-                _format_percentage(stats["checked_in"], stats["total"]),
-            ]
+            _build_final_registered_row(
+                participant,
+                selected_columns,
+                include_unique_identifier,
+                configuration_snapshot,
+            )
+        )
+
+    for guest in guest_participants:
+        worksheet.append(
+            _build_final_guest_row(
+                guest,
+                selected_columns,
+                include_unique_identifier,
+            )
         )
 
     _finalize_data_sheet(worksheet)
 
 
-def _add_raw_import_sheet(workbook, participants, configuration_snapshot):
-    raw_columns = _resolve_raw_import_columns(participants, configuration_snapshot)
-    worksheet = workbook.create_sheet("Raw Imported RSVP Data")
-    worksheet.append(_build_raw_import_headers(raw_columns))
+def _add_analysis_sheet(workbook, participants, guest_participants, selected_columns, configuration_snapshot):
+    worksheet = workbook.create_sheet("Data Analysis")
+    total_rsvp = len(participants)
+    checked_in_rsvp = sum(1 for participant in participants if participant.checked_in)
+    no_show_rsvp = total_rsvp - checked_in_rsvp
+    guest_count = len(guest_participants)
+    total_attendance = checked_in_rsvp + guest_count
 
-    for participant in participants:
-        worksheet.append(
-            _build_raw_import_row(
-                participant,
-                raw_columns,
-                configuration_snapshot,
-            )
-        )
+    worksheet.append(["Metric", "Value"])
+    worksheet.append(["Total RSVP", total_rsvp])
+    worksheet.append(["Checked-in RSVP", checked_in_rsvp])
+    worksheet.append(["No-show RSVP", no_show_rsvp])
+    worksheet.append(["Guest Count", guest_count])
+    worksheet.append(["Total Attendance", total_attendance])
+    worksheet.append(["RSVP Attendance Rate", _format_percentage(checked_in_rsvp, total_rsvp)])
+    worksheet.append([])
+    worksheet.append(["Attendance Type", "Count"])
+    worksheet.append(["Registered", checked_in_rsvp])
+    worksheet.append(["Guest", guest_count])
+    worksheet.append([])
+    worksheet.append(["RSVP Status", "Count"])
+    worksheet.append(["Checked In", checked_in_rsvp])
+    worksheet.append(["No Show", no_show_rsvp])
+
+    grouped_analysis = _grouped_analysis_rows(participants, selected_columns, configuration_snapshot)
+    worksheet.append([])
+    if grouped_analysis:
+        grouping_column, grouped_rows = grouped_analysis
+        worksheet.append([grouping_column, "RSVP Count", "Checked-in Count", "No-show Count"])
+        for grouped_row in grouped_rows:
+            worksheet.append(grouped_row)
+    else:
+        worksheet.append(["Grouped Analysis"])
+        worksheet.append(["No suitable selected import column found for grouped analysis."])
 
     _finalize_data_sheet(worksheet)
 
@@ -504,7 +414,7 @@ def build_attendance_csv_response():
                 participant.unid,
                 participant.major,
                 "Yes",
-                _format_checkin_time(participant.checkin_time),
+                _format_datetime(participant.checkin_time),
             ]
         )
 
@@ -516,7 +426,7 @@ def build_attendance_csv_response():
                 guest.unid,
                 guest.major,
                 "Yes" if guest.checked_in else "No",
-                _format_checkin_time(guest.checkin_time),
+                _format_datetime(guest.checkin_time),
             ]
         )
 
@@ -539,7 +449,7 @@ def build_rsvp_csv_response():
                 participant.unid,
                 participant.major,
                 "Yes" if participant.checked_in else "No",
-                _format_checkin_time(participant.checkin_time),
+                _format_datetime(participant.checkin_time),
             ]
         )
 
@@ -550,59 +460,66 @@ def build_rsvp_xlsx_response():
     participants = list(RegisteredParticipant.objects.all().order_by("submission_order", "id"))
     guest_participants = list(GuestParticipant.objects.all().order_by("-checkin_time", "-created_at", "id"))
     checked_in_participants = [participant for participant in participants if participant.checked_in]
-    pending_participants = [participant for participant in participants if not participant.checked_in]
+    no_show_participants = [participant for participant in participants if not participant.checked_in]
 
-    configuration = RSVPImportConfiguration.objects.order_by("pk").first()
+    has_saved_configuration = RSVPImportConfiguration.objects.exists()
     configuration_snapshot = get_import_configuration_snapshot()
-    export_columns = _resolve_rsvp_export_columns(
+    selected_columns = _resolve_selected_columns(
         participants,
         configuration_snapshot,
-        configuration,
+        has_saved_configuration,
     )
+    include_unique_identifier = _needs_unique_identifier_column(selected_columns, configuration_snapshot)
 
     workbook = Workbook()
     workbook.remove(workbook.active)
 
-    _add_summary_sheet(
+    _add_summary_sheet(workbook, participants, guest_participants, selected_columns)
+    _add_registered_sheet(
         workbook,
+        "Registered Participants",
         participants,
-        guest_participants,
-        configuration,
-        configuration_snapshot,
-        export_columns,
-    )
-    _add_all_attendance_sheet(
-        workbook,
-        participants,
-        guest_participants,
-        export_columns,
+        selected_columns,
+        include_unique_identifier,
         configuration_snapshot,
     )
-    _add_rsvp_sheet(
+    _add_registered_sheet(
         workbook,
-        "RSVP Checked In",
+        "Checked-In Only",
         checked_in_participants,
-        export_columns,
+        selected_columns,
+        include_unique_identifier,
         configuration_snapshot,
     )
-    _add_rsvp_sheet(
+    _add_registered_sheet(
         workbook,
-        "RSVP Not Checked In",
-        pending_participants,
-        export_columns,
+        "No-Show",
+        no_show_participants,
+        selected_columns,
+        include_unique_identifier,
         configuration_snapshot,
     )
     _add_guest_sheet(workbook, guest_participants)
-    _add_table_team_summary_sheet(workbook, participants, configuration_snapshot)
-    _add_raw_import_sheet(workbook, participants, configuration_snapshot)
+    _add_final_attendance_sheet(
+        workbook,
+        checked_in_participants,
+        guest_participants,
+        selected_columns,
+        include_unique_identifier,
+        configuration_snapshot,
+    )
+    _add_analysis_sheet(
+        workbook,
+        participants,
+        guest_participants,
+        selected_columns,
+        configuration_snapshot,
+    )
 
     output = io.BytesIO()
     workbook.save(output)
     output.seek(0)
 
-    response = HttpResponse(
-        output.getvalue(),
-        content_type=XLSX_CONTENT_TYPE,
-    )
+    response = HttpResponse(output.getvalue(), content_type=XLSX_CONTENT_TYPE)
     response["Content-Disposition"] = f'attachment; filename="{XLSX_EXPORT_FILENAME}"'
     return response

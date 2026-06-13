@@ -22,7 +22,7 @@
 {% block content %}
     <div>
         <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Data Tools</h1>
-        <p class="mt-md max-w-3xl text-body-md text-secondary">Import flexible RSVP exports, review custom columns before saving them, and keep cleanup actions away from the live guest check-in flow.</p>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Import flexible RSVP exports, choose the exact columns to save, and keep cleanup actions away from the live guest check-in flow.</p>
     </div>
 
     <div class="flex justify-end">
@@ -41,7 +41,7 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Imported RSVP Participants</h2>
-            <p class="mt-2 text-secondary">The table below follows the display and search columns chosen during the most recent RSVP import review.</p>
+            <p class="mt-2 text-secondary">The table below follows the selected columns chosen during the most recent RSVP import review.</p>
         </div>
 
         {% if participants %}
@@ -275,7 +275,7 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Data Exports</h2>
-            <p class="mt-2 text-secondary">Download the current RSVP list, the full attendance workbook, or the final attendance CSV without leaving Data Tools.</p>
+            <p class="mt-2 text-secondary">Download the current RSVP list, the selected-column attendance workbook, or the final attendance CSV without leaving Data Tools.</p>
         </div>
         <div class="p-lg grid gap-md">
             <a class="flex items-center justify-between rounded-xl bg-primary text-white p-md font-lexend font-semibold transition-colors hover:bg-primary-container" href="{% url 'checkin:export_rsvp_xlsx' %}">
