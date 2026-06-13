@@ -300,7 +300,7 @@ class ImportReviewFlowTests(TestCase):
         self.assertContains(response, "Dietary Restrictions")
         self.assertNotContains(response, "Major</th>", html=False)
         self.assertContains(response, 'placeholder="Search by Full Name, Email"', html=False)
-        self.assertContains(response, "Export Full Attendance Report (.xlsx)")
+        self.assertNotContains(response, "Export Full Attendance Report (.xlsx)")
         self.assertNotContains(
             response,
             'class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold"',
@@ -798,6 +798,8 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertEqual(response.context["current_total_attendance"], 2)
         self.assertContains(response, "University of Utah")
         self.assertContains(response, "Current Total Attendance")
+        self.assertNotContains(response, "<span>Data Analysis</span>", html=False)
+        self.assertNotContains(response, "<span>Analysis</span>", html=False)
 
     def test_dashboard_handles_unavailable_database_without_500(self):
         with patch("checkin.views.RegisteredParticipant.objects.count", side_effect=OperationalError):
