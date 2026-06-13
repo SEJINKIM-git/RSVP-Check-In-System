@@ -636,7 +636,8 @@ class ParticipantListAndAdminFlowTests(TestCase):
         participant.refresh_from_db()
         self.assertEqual(response.status_code, 200)
         self.assertTrue(participant.checked_in)
-        self.assertContains(response, 'data-checkin-toggle="true"', html=False)
+        self.assertContains(response, 'aria-pressed="true"', html=False)
+        self.assertNotContains(response, "tap to undo")
         self.assertContains(response, 'hx-swap-oob="true"', html=False)
         self.assertNotIn("Location", response)
 
@@ -656,6 +657,24 @@ class ParticipantListAndAdminFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(participant.checked_in)
         self.assertIsNotNone(participant.checkin_time)
+
+    def test_registered_page_does_not_include_undo_helper_or_scroll_restore_hook(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Stable UI Student",
+            unid="u4002",
+            major="Operations",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        response = self.client.get("/checkin/registered/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, participant.name)
+        self.assertNotContains(response, "tap to undo")
+        self.assertNotContains(response, "pendingCheckinScrollY")
+        self.assertContains(response, 'focus-scroll:false', html=False)
 
     def test_delete_participant_removes_row_and_reorders_following_rows(self):
         first = RegisteredParticipant.objects.create(

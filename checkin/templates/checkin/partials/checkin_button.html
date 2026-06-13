@@ -3,8 +3,8 @@
     hx-post="{% url 'checkin:toggle_checkin' participant.id %}"
     hx-target="#checkin-cell-{{ participant.id }}"
     hx-swap="innerHTML show:none focus-scroll:false"
-    data-checkin-toggle="true"
-    class="inline-flex items-center gap-sm rounded-lg px-sm py-xs transition-all active:scale-95 group/btn [&.htmx-request]:opacity-40 [&.htmx-request]:cursor-wait"
+    aria-pressed="{% if participant.checked_in %}true{% else %}false{% endif %}"
+    class="group inline-flex min-w-[7.5rem] items-center justify-start gap-sm whitespace-nowrap rounded-lg px-sm py-xs transition-all active:scale-95 [&.htmx-request]:opacity-40 [&.htmx-request]:cursor-wait"
     aria-label="Toggle check-in for {{ participant.name|default:participant.unid }}"
 >
     {% if participant.checked_in %}
@@ -12,10 +12,9 @@
             <span class="material-symbols-outlined text-[16px]">check</span>
         </span>
         <span class="font-semibold text-primary text-[15px]">Checked In</span>
-        <span class="text-[11px] text-secondary font-normal ml-xs hidden group-hover/btn:inline">tap to undo</span>
     {% else %}
-        <span class="w-6 h-6 rounded flex-shrink-0 border-2 border-gray-300 bg-white group-hover/btn:border-primary transition-colors"></span>
-        <span class="font-medium text-secondary text-[15px] group-hover/btn:text-on-surface">Pending</span>
+        <span class="w-6 h-6 rounded flex-shrink-0 border-2 border-gray-300 bg-white transition-colors group-hover:border-primary"></span>
+        <span class="font-medium text-secondary text-[15px] group-hover:text-on-surface">Pending</span>
     {% endif %}
 </button>
 
