@@ -15,33 +15,33 @@
 {% block content %}
     <div>
         <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Data Analysis</h1>
-        <p class="mt-md max-w-3xl text-body-md text-secondary">체크인 현황과 전공별 참석 분포를 실시간으로 확인하세요.</p>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Track real-time check-in status and major distribution of attendees.</p>
     </div>
 
     <!-- Summary stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-lg">
         <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
-            <p class="text-label-sm uppercase tracking-widest text-secondary">전체 RSVP</p>
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Total RSVP</p>
             <p class="font-lexend text-5xl font-black text-primary">{{ total_registered }}</p>
-            <p class="text-body-sm text-secondary">등록된 참가자</p>
+            <p class="text-body-sm text-secondary">Registered attendees</p>
         </div>
         <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
-            <p class="text-label-sm uppercase tracking-widest text-secondary">체크인 완료</p>
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Checked In</p>
             <p class="font-lexend text-5xl font-black text-primary">{{ total_checked_in }}</p>
-            <p class="text-body-sm text-secondary">현장 등록 포함</p>
+            <p class="text-body-sm text-secondary">Including walk-ins</p>
         </div>
         <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
-            <p class="text-label-sm uppercase tracking-widest text-secondary">현장 등록</p>
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Walk-ins</p>
             <p class="font-lexend text-5xl font-black text-primary">{{ total_guest }}</p>
-            <p class="text-body-sm text-secondary">RSVP 외 walk-in</p>
+            <p class="text-body-sm text-secondary">On-site registrations</p>
         </div>
     </div>
 
     <!-- 전공별 참석 인원 -->
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
-            <h2 class="font-lexend text-2xl font-bold text-on-surface">전공별 참석 인원</h2>
-            <p class="mt-2 text-secondary text-body-sm">상위 전공 + 기타(Other) + 미입력으로 버킷팅</p>
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Attendance by Major</h2>
+            <p class="mt-2 text-secondary text-body-sm">Grouped by major, with Other and Undeclared at the bottom</p>
         </div>
         <div class="p-lg">
             {% if has_major_data %}
@@ -51,7 +51,7 @@
             {% else %}
                 <div class="py-xl text-center text-secondary">
                     <span class="material-symbols-outlined text-5xl text-gray-300">school</span>
-                    <p class="mt-md">참가자 데이터가 없습니다.</p>
+                    <p class="mt-md">No attendee data available.</p>
                 </div>
             {% endif %}
         </div>
@@ -60,8 +60,8 @@
     <!-- 시간대별 체크인 -->
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
-            <h2 class="font-lexend text-2xl font-bold text-on-surface">시간대별 체크인</h2>
-            <p class="mt-2 text-secondary text-body-sm">checkin_time을 15분 단위로 집계</p>
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Check-ins Over Time</h2>
+            <p class="mt-2 text-secondary text-body-sm">Aggregated in 15-minute intervals</p>
         </div>
         <div class="p-lg">
             {% if has_checkin_data %}
@@ -71,7 +71,7 @@
             {% else %}
                 <div class="py-xl text-center text-secondary">
                     <span class="material-symbols-outlined text-5xl text-gray-300">schedule</span>
-                    <p class="mt-md">아직 체크인 데이터가 없습니다. 참가자가 입장하면 여기에 표시됩니다.</p>
+                    <p class="mt-md">No check-in data yet. Data will appear here as attendees arrive.</p>
                 </div>
             {% endif %}
         </div>
@@ -120,7 +120,7 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ` 참석: ${ctx.parsed.x}명`
+                            label: ctx => ` Attendees: ${ctx.parsed.x}`
                         }
                     }
                 },
@@ -165,7 +165,7 @@
                     tooltip: {
                         callbacks: {
                             title: ([ctx]) => ctx.label,
-                            label: ctx => ` 체크인: ${ctx.parsed.y}`
+                            label: ctx => ` Check-ins: ${ctx.parsed.y}`
                         }
                     }
                 },
