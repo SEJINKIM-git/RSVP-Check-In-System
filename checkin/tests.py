@@ -301,6 +301,11 @@ class ImportReviewFlowTests(TestCase):
         self.assertNotContains(response, "Major</th>", html=False)
         self.assertContains(response, 'placeholder="Search by Full Name, Email"', html=False)
         self.assertContains(response, "Export Full Attendance Report (.xlsx)")
+        self.assertNotContains(
+            response,
+            'class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold"',
+            html=False,
+        )
 
     def test_import_review_requires_pending_upload(self):
         response = self.client.get("/checkin/import/review/")

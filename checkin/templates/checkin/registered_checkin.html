@@ -66,10 +66,7 @@
                                 {% for cell in row.cells %}
                                     <td class="px-lg py-md {% if forloop.first %}font-semibold text-on-surface{% else %}text-[16px] text-secondary{% endif %}">
                                         {% if forloop.first %}
-                                            <div class="flex items-center gap-md">
-                                                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold">{{ row.avatar_letter }}</div>
-                                                <span>{{ cell.value }}</span>
-                                            </div>
+                                            <span>{{ cell.value }}</span>
                                         {% else %}
                                             {% if cell.header == participant_table.identifier_label %}
                                                 <span class="font-mono">{{ cell.value }}</span>
