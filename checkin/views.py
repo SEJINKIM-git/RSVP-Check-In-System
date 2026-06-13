@@ -429,16 +429,21 @@ def delete_all_guests(request):
 
 
 def _normalize_major(major_str):
-    if not major_str or major_str.strip().lower() in ("none", "n/a", "-", "", "null", "na"):
-        return "Other"
-    return major_str.strip()
+    s = (major_str or "").strip()
+    if not s or s.lower() in ("none", "n/a", "-", "null", "na"):
+        return "미입력"
+    if s.lower() == "other":
+        return "Other (기타)"
+    return s
 
 
-def _hour_label(dt):
-    h = dt.hour
-    period = "AM" if h < 12 else "PM"
-    display = h % 12 or 12
-    return f"{display}:00 {period}"
+def _major_sort_key(item):
+    name, count = item
+    if name == "미입력":
+        return (2, -count)
+    if name == "Other (기타)":
+        return (1, -count)
+    return (0, -count)
 
 
 def analytics_view(request):
@@ -446,33 +451,26 @@ def analytics_view(request):
         return HttpResponseNotAllowed(["GET"])
 
     try:
-        # Time-based check-in chart (registered + guest)
-        hour_counts = defaultdict(int)
-        for row in (
-            RegisteredParticipant.objects.filter(checked_in=True, checkin_time__isnull=False)
-            .annotate(hour=TruncHour("checkin_time"))
-            .values("hour")
-            .annotate(count=Count("id"))
-        ):
-            hour_counts[row["hour"]] += row["count"]
-        for row in (
-            GuestParticipant.objects.filter(checked_in=True, checkin_time__isnull=False)
-            .annotate(hour=TruncHour("checkin_time"))
-            .values("hour")
-            .annotate(count=Count("id"))
-        ):
-            hour_counts[row["hour"]] += row["count"]
+        # 15분 단위 체크인 집계
+        quarter_counts = defaultdict(int)
+        for row in RegisteredParticipant.objects.filter(
+            checked_in=True, checkin_time__isnull=False
+        ).values("checkin_time"):
+            dt = row["checkin_time"]
+            key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
+            quarter_counts[key] += 1
+        for row in GuestParticipant.objects.filter(
+            checked_in=True, checkin_time__isnull=False
+        ).values("checkin_time"):
+            dt = row["checkin_time"]
+            key = dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
+            quarter_counts[key] += 1
 
-        sorted_hours = sorted(hour_counts)
-        checkin_time_labels = [_hour_label(h) for h in sorted_hours]
-        checkin_time_values = [hour_counts[h] for h in sorted_hours]
+        sorted_quarters = sorted(quarter_counts)
+        checkin_time_labels = [f"{q.hour:02d}:{q.minute:02d}" for q in sorted_quarters]
+        checkin_time_values = [quarter_counts[q] for q in sorted_quarters]
 
-        cumulative, running = [], 0
-        for v in checkin_time_values:
-            running += v
-            cumulative.append(running)
-
-        # Major distribution (all registered + guests with a major)
+        # 전공별 분포 (registered + guest, 미입력/Other 분리)
         major_counter = Counter()
         for p in RegisteredParticipant.objects.values("major"):
             major_counter[_normalize_major(p["major"])] += 1
@@ -480,7 +478,7 @@ def analytics_view(request):
             if p["major"]:
                 major_counter[_normalize_major(p["major"])] += 1
 
-        sorted_majors = sorted(major_counter.items(), key=lambda x: (x[0] == "Other", -x[1]))
+        sorted_majors = sorted(major_counter.items(), key=_major_sort_key)
         major_labels = [m[0] for m in sorted_majors]
         major_values = [m[1] for m in sorted_majors]
 
@@ -495,13 +493,12 @@ def analytics_view(request):
             "active_nav": "analytics",
             "checkin_time_labels": json.dumps(checkin_time_labels),
             "checkin_time_values": json.dumps(checkin_time_values),
-            "cumulative_values": json.dumps(cumulative),
             "major_labels": json.dumps(major_labels),
             "major_values": json.dumps(major_values),
             "total_registered": total_registered,
             "total_checked_in": total_checked_in,
             "total_guest": total_guest,
-            "has_checkin_data": bool(sorted_hours),
+            "has_checkin_data": bool(sorted_quarters),
             "has_major_data": bool(major_labels),
         }
     except (OperationalError, ProgrammingError):
@@ -509,7 +506,6 @@ def analytics_view(request):
             "active_nav": "analytics",
             "checkin_time_labels": json.dumps([]),
             "checkin_time_values": json.dumps([]),
-            "cumulative_values": json.dumps([]),
             "major_labels": json.dumps([]),
             "major_values": json.dumps([]),
             "total_registered": 0,
