@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from checkin.models import GuestParticipant, RegisteredParticipant
+from checkin.models import GuestParticipant, RSVPImportConfiguration, RegisteredParticipant
 
 
 @admin.register(RegisteredParticipant)
@@ -17,3 +17,14 @@ class GuestParticipantAdmin(admin.ModelAdmin):
     list_filter = ("checked_in", "major")
     search_fields = ("name", "unid", "major")
     ordering = ("-checkin_time", "-created_at", "id")
+
+
+@admin.register(RSVPImportConfiguration)
+class RSVPImportConfigurationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "unique_identifier_strategy",
+        "unique_identifier_source",
+        "name_column",
+        "updated_at",
+    )

@@ -1,0 +1,23 @@
+<button
+    type="button"
+    hx-post="{% url 'checkin:toggle_checkin' participant.id %}"
+    hx-target="#checkin-cell-{{ participant.id }}"
+    hx-swap="innerHTML"
+    class="inline-flex items-center gap-sm rounded-lg px-sm py-xs transition-all active:scale-95 group/btn [&.htmx-request]:opacity-40 [&.htmx-request]:cursor-wait"
+    aria-label="Toggle check-in for {{ participant.name|default:participant.unid }}"
+>
+    {% if participant.checked_in %}
+        <span class="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center bg-primary text-white">
+            <span class="material-symbols-outlined text-[16px]">check</span>
+        </span>
+        <span class="font-semibold text-primary text-[15px]">Checked In</span>
+        <span class="text-[11px] text-secondary font-normal ml-xs hidden group-hover/btn:inline">tap to undo</span>
+    {% else %}
+        <span class="w-6 h-6 rounded flex-shrink-0 border-2 border-gray-300 bg-white group-hover/btn:border-primary transition-colors"></span>
+        <span class="font-medium text-secondary text-[15px] group-hover/btn:text-on-surface">Pending</span>
+    {% endif %}
+</button>
+
+{% if is_htmx %}
+<span id="stat-checked-in-total" hx-swap-oob="true">{{ checked_in_total }}</span>
+{% endif %}

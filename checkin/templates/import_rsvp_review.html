@@ -1,0 +1,176 @@
+{% extends "checkin/base.html" %}
+
+{% block title %}Review RSVP Import | UAC RSVP{% endblock %}
+
+{% block content %}
+    <div>
+        <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface">Review RSVP Import</h1>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Step 2 of 2: confirm the detected header row, choose how rows should be identified, and decide which columns belong in the RSVP check-in view.</p>
+    </div>
+
+    <div class="flex justify-end">
+        <div class="flex flex-wrap justify-end gap-md">
+            <a class="px-lg py-sm border-2 border-primary bg-white text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95" href="{% url 'checkin:import_rsvp' %}">
+                Back to Data Tools
+            </a>
+        </div>
+    </div>
+
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Detected File Structure</h2>
+            <p class="mt-2 text-secondary">The importer scanned the first several rows and picked spreadsheet row {{ review_context.header_row_number }} as the header row.</p>
+        </div>
+        <div class="p-lg space-y-lg">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+                <div class="rounded-xl bg-surface-container-low p-md">
+                    <p class="font-label-md uppercase text-secondary">Detected Columns</p>
+                    <p class="mt-sm text-[32px] leading-none font-black text-on-surface">{{ review_context.header_count }}</p>
+                </div>
+                <div class="rounded-xl bg-surface-container-low p-md">
+                    <p class="font-label-md uppercase text-secondary">Valid Preview Rows</p>
+                    <p class="mt-sm text-[32px] leading-none font-black text-green-700">{{ review_context.preview.valid_count }}</p>
+                </div>
+                <div class="rounded-xl bg-surface-container-low p-md">
+                    <p class="font-label-md uppercase text-secondary">Rows Requiring Attention</p>
+                    <p class="mt-sm text-[32px] leading-none font-black text-primary">{{ review_context.preview.invalid_count }}</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-sm">
+                {% for column in review_context.detected_columns %}
+                    <span class="inline-flex items-center rounded-full bg-surface-container-low px-md py-sm text-sm font-semibold text-secondary">{{ column }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Import Settings</h2>
+            <p class="mt-2 text-secondary">Suggested mappings are preselected, but you can change them before the final import.</p>
+        </div>
+        <form method="post" class="p-lg space-y-lg">
+            {% csrf_token %}
+
+            <div class="grid gap-md md:grid-cols-2">
+                <div>
+                    <label class="mb-sm block font-label-md uppercase text-secondary" for="unique_identifier_selection">Unique Identifier</label>
+                    <select id="unique_identifier_selection" name="unique_identifier_selection" class="w-full rounded-xl border border-gray-200 bg-surface-container-low px-md py-sm text-body-md focus:ring-2 focus:ring-primary">
+                        {% for option in review_context.identifier_options %}
+                            <option value="{{ option.value }}" {% if option.value == review_context.review_settings.unique_identifier_selection %}selected{% endif %}>{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-sm text-sm text-secondary">This value will be used to detect duplicates and keep each RSVP row uniquely identifiable.</p>
+                </div>
+                <div class="rounded-xl bg-surface-container-low p-md">
+                    <p class="font-label-md uppercase text-secondary">Suggested Unique Identifier</p>
+                    <p class="mt-sm text-xl font-black text-on-surface">{{ review_context.identifier_label }}</p>
+                    {% if review_context.has_name_timestamp_option %}
+                        <p class="mt-sm text-sm text-secondary">If the sheet has no dedicated ID column, you can use Name + Timestamp as a reliable fallback.</p>
+                    {% else %}
+                        <p class="mt-sm text-sm text-secondary">If none of the detected columns are reliable, choose the generated internal RSVP ID option.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid gap-md md:grid-cols-4">
+                {% for field in review_context.mapping_fields %}
+                    <div>
+                        <label class="mb-sm block font-label-md uppercase text-secondary" for="{{ field.name }}_column">{{ field.label }} Column</label>
+                        <select id="{{ field.name }}_column" name="{{ field.name }}_column" class="w-full rounded-xl border border-gray-200 bg-surface-container-low px-md py-sm text-body-md focus:ring-2 focus:ring-primary">
+                            <option value="">Do not map</option>
+                            {% for column in review_context.detected_columns %}
+                                <option value="{{ column }}" {% if column == field.selected_header %}selected{% endif %}>{{ column }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="grid gap-lg lg:grid-cols-2">
+                <div class="rounded-xl border border-gray-100 p-lg">
+                    <h3 class="font-lexend text-xl font-bold text-on-surface">Dashboard Display Columns</h3>
+                    <p class="mt-2 text-secondary">Only these columns will be shown in the registered RSVP tables after import.</p>
+                    <div class="mt-md grid gap-sm">
+                        {% for column in review_context.detected_columns %}
+                            <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
+                                <input class="rounded border-gray-300 text-primary focus:ring-primary" type="checkbox" name="display_columns" value="{{ column }}" {% if column in review_context.review_settings.display_columns %}checked{% endif %}>
+                                <span>{{ column }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-gray-100 p-lg">
+                    <h3 class="font-lexend text-xl font-bold text-on-surface">Searchable Columns</h3>
+                    <p class="mt-2 text-secondary">Search on the RSVP pages will only use the columns checked here.</p>
+                    <div class="mt-md grid gap-sm">
+                        {% for column in review_context.detected_columns %}
+                            <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
+                                <input class="rounded border-gray-300 text-primary focus:ring-primary" type="checkbox" name="searchable_columns" value="{{ column }}" {% if column in review_context.review_settings.searchable_columns %}checked{% endif %}>
+                                <span>{{ column }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-100 overflow-hidden">
+                <div class="border-b border-gray-100 bg-surface-container-low px-lg py-md">
+                    <h3 class="font-lexend text-xl font-bold text-on-surface">First 10 Data Rows</h3>
+                    <p class="mt-2 text-secondary">Use this preview to confirm that the header row and custom questions were detected correctly before importing.</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[60rem] text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low text-secondary font-label-md">
+                                <th class="px-lg py-md">Row</th>
+                                {% for column in review_context.detected_columns %}
+                                    <th class="px-lg py-md">{{ column }}</th>
+                                {% endfor %}
+                                <th class="px-lg py-md">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for row in review_context.preview.preview_rows %}
+                                <tr class="{% if row.is_valid %}bg-green-50/35{% else %}bg-red-50/75{% endif %}">
+                                    <td class="px-lg py-md text-secondary">{{ row.row_number }}</td>
+                                    {% for cell in row.cells %}
+                                        <td class="px-lg py-md text-secondary">{{ cell.value|default:"—" }}</td>
+                                    {% endfor %}
+                                    <td class="px-lg py-md text-sm">
+                                        {% if row.is_valid %}
+                                            <span class="inline-flex items-center rounded-full bg-green-100 px-sm py-1 font-bold uppercase tracking-wide text-green-800">Ready</span>
+                                        {% else %}
+                                            <div class="space-y-2">
+                                                <span class="inline-flex items-center rounded-full bg-red-100 px-sm py-1 font-bold uppercase tracking-wide text-red-800">Needs Review</span>
+                                                <ul class="space-y-1 text-red-800">
+                                                    {% for error in row.errors %}
+                                                        <li>{{ error }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-sm sm:flex-row sm:justify-end">
+                <button type="submit" name="review_action" value="cancel" class="px-lg py-sm border border-gray-300 bg-white text-secondary font-lexend font-semibold rounded-xl hover:bg-gray-100 transition-all active:scale-95">
+                    Cancel
+                </button>
+                <button type="submit" name="review_action" value="update" class="px-lg py-sm border-2 border-primary bg-white text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95">
+                    Update Preview
+                </button>
+                <button type="submit" name="review_action" value="confirm" class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95">
+                    Confirm Import
+                </button>
+            </div>
+        </form>
+    </section>
+{% endblock %}

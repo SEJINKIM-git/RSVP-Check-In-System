@@ -5,11 +5,14 @@
 {% block content %}
     <div>
         <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Registered Check-In</h1>
-        <p class="mt-md max-w-2xl text-body-md text-secondary">Work from the imported RSVP list only, find participants quickly, and keep the check-in queue moving.</p>
+        <p class="mt-md max-w-2xl text-body-md text-secondary">Search the imported RSVP list using the selected review columns and keep the live check-in queue moving.</p>
     </div>
 
     <div class="flex justify-end">
         <div class="flex flex-wrap justify-end gap-md">
+            <a class="px-lg py-sm border-2 border-primary bg-white text-primary font-lexend font-semibold rounded-xl hover:bg-primary-fixed-dim transition-all active:scale-95" href="{% url 'checkin:export_rsvp_xlsx' %}">
+                Export Current RSVP Data
+            </a>
             <a class="px-lg py-sm bg-primary text-white font-lexend font-semibold rounded-xl hover:bg-primary-container shadow-md transition-all active:scale-95" href="{% url 'checkin:dashboard' %}">
                 Back to Dashboard
             </a>
@@ -36,14 +39,14 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">RSVP List</h2>
-            <p class="mt-2 text-secondary">Search by participant name, UNID, or major without interrupting the check-in toggle flow.</p>
+            <p class="mt-2 text-secondary">Only the selected display columns appear here, and search uses the selected searchable columns.</p>
         </div>
 
         {% if participants %}
             <div class="p-lg border-b border-gray-100">
-                <div class="relative w-full md:w-[28rem]">
+                <div class="relative w-full md:w-[32rem]">
                     <span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-secondary">search</span>
-                    <input id="participant-search" class="w-full pl-xl pr-md py-sm bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary text-body-md" placeholder="Search by Name, UNID, or Major" type="text" autocomplete="off">
+                    <input id="participant-search" class="w-full pl-xl pr-md py-sm bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary text-body-md" placeholder="{{ participant_table.search_placeholder }}" type="text" autocomplete="off">
                 </div>
             </div>
 
@@ -51,15 +54,35 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-surface-container-low text-secondary font-label-md">
-                            <th class="px-lg py-md">Name</th>
-                            <th class="px-lg py-md">UNID</th>
-                            <th class="px-lg py-md">Major</th>
+                            {% for column in participant_table.columns %}
+                                <th class="px-lg py-md">{{ column }}</th>
+                            {% endfor %}
                             <th class="px-lg py-md">Check-In Status</th>
                         </tr>
                     </thead>
                     <tbody id="participants-table-body" class="divide-y divide-gray-100">
-                        {% for participant in participants %}
-                            {% include "checkin/partials/checkin_row.html" %}
+                        {% for row in participant_table.rows %}
+                            <tr id="row-{{ row.participant.id }}" class="hover:bg-gray-50 transition-colors group" data-search="{{ row.search_text }}">
+                                {% for cell in row.cells %}
+                                    <td class="px-lg py-md {% if forloop.first %}font-semibold text-on-surface{% else %}text-[16px] text-secondary{% endif %}">
+                                        {% if forloop.first %}
+                                            <div class="flex items-center gap-md">
+                                                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-primary font-bold">{{ row.avatar_letter }}</div>
+                                                <span>{{ cell.value }}</span>
+                                            </div>
+                                        {% else %}
+                                            {% if cell.header == participant_table.identifier_label %}
+                                                <span class="font-mono">{{ cell.value }}</span>
+                                            {% else %}
+                                                {{ cell.value }}
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                                <td class="px-lg py-md" id="checkin-cell-{{ row.participant.id }}">
+                                    {% include "checkin/partials/checkin_button.html" with participant=row.participant %}
+                                </td>
+                            </tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -95,10 +118,8 @@
             let visibleCount = 0;
 
             participantRows.forEach((row) => {
-                const rowName = row.dataset.name || "";
-                const rowUnid = row.dataset.unid || "";
-                const rowMajor = row.dataset.major || "";
-                const shouldShow = !query || rowName.includes(query) || rowUnid.includes(query) || rowMajor.includes(query);
+                const rowSearchText = row.dataset.search || "";
+                const shouldShow = !query || rowSearchText.includes(query);
 
                 row.style.display = shouldShow ? "" : "none";
                 if (shouldShow) {

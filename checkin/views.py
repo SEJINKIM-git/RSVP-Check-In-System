@@ -16,13 +16,17 @@ from checkin.models import GuestParticipant, RegisteredParticipant
 from checkin.services.export_attendance import (
     build_attendance_csv_response,
     build_rsvp_csv_response,
+    build_rsvp_xlsx_response,
 )
 from checkin.services.import_rsvp import (
     FIELD_LABELS,
-    IMPORT_FIELD_NAMES,
+    GENERATE_INTERNAL_ID,
+    IMPORT_RESULT_SESSION_KEY,
     IMPORT_SESSION_KEY,
-    REQUIRED_FIELD_NAMES,
-    build_import_preview,
+    NAME_TIMESTAMP_ID,
+    build_import_review,
+    build_participant_answers,
+    get_import_configuration_snapshot,
     import_rsvp_rows,
     prepare_rsvp_import,
 )
@@ -33,18 +37,6 @@ DATABASE_UNAVAILABLE_MESSAGE = (
     "On Vercel, set DATABASE_URL to a managed Postgres database and run migrations. "
     "SQLite files from local development are not a reliable production database on Vercel."
 )
-
-
-def _mapping_fields_context(mapping):
-    return [
-        {
-            "name": field,
-            "label": FIELD_LABELS[field],
-            "selected_header": mapping.get(field, ""),
-            "required": field in REQUIRED_FIELD_NAMES,
-        }
-        for field in IMPORT_FIELD_NAMES
-    ]
 
 
 def _database_unavailable_context():
@@ -70,6 +62,120 @@ def _redirect_to_next(request, fallback_name):
     ):
         return redirect(next_url)
     return redirect(fallback_name)
+
+
+def _build_search_placeholder(searchable_columns):
+    if not searchable_columns:
+        return "Search imported RSVP data"
+    if len(searchable_columns) <= 3:
+        return "Search by " + ", ".join(searchable_columns)
+    return "Search selected RSVP columns"
+
+
+def _build_participant_table_context(participants, configuration):
+    display_columns = configuration.get("display_columns") or configuration.get("imported_columns") or []
+    searchable_columns = configuration.get("searchable_columns") or display_columns
+    identifier_label = configuration.get("identifier_label") or "Unique Identifier"
+
+    rows = []
+    for participant in participants:
+        answers = build_participant_answers(participant, configuration)
+        display_name = participant.name or participant.unid or "Imported Participant"
+        search_text = " ".join(
+            str(answers.get(column, "")).lower()
+            for column in searchable_columns
+        ).strip()
+        rows.append(
+            {
+                "participant": participant,
+                "display_name": display_name,
+                "avatar_letter": display_name[:1].upper() if display_name else "?",
+                "cells": [
+                    {
+                        "header": column,
+                        "value": answers.get(column, "") or "-",
+                    }
+                    for column in display_columns
+                ],
+                "search_text": search_text,
+            }
+        )
+
+    return {
+        "columns": display_columns,
+        "rows": rows,
+        "searchable_columns": searchable_columns,
+        "search_placeholder": _build_search_placeholder(searchable_columns),
+        "identifier_label": identifier_label,
+    }
+
+
+def _pop_import_summary(request):
+    summary = request.session.pop(IMPORT_RESULT_SESSION_KEY, None)
+    if summary:
+        request.session.modified = True
+    return summary
+
+
+def _pending_import_payload(request):
+    return request.session.get(IMPORT_SESSION_KEY)
+
+
+def _save_pending_import(request, prepared_import):
+    request.session[IMPORT_SESSION_KEY] = {
+        "headers": prepared_import["headers"],
+        "rows": prepared_import["rows"],
+        "header_row_number": prepared_import["header_row_number"],
+        "detection": prepared_import["detection"],
+        "review_settings": prepared_import["review"]["review_settings"],
+    }
+    request.session.modified = True
+
+
+def _review_settings_from_post(request):
+    return {
+        "unique_identifier_selection": request.POST.get("unique_identifier_selection", GENERATE_INTERNAL_ID),
+        "name_column": request.POST.get("name_column", ""),
+        "major_column": request.POST.get("major_column", ""),
+        "email_column": request.POST.get("email_column", ""),
+        "timestamp_column": request.POST.get("timestamp_column", ""),
+        "display_columns": request.POST.getlist("display_columns"),
+        "searchable_columns": request.POST.getlist("searchable_columns"),
+    }
+
+
+def _build_review_context(pending_import, review_settings=None):
+    review = build_import_review(
+        pending_import["headers"],
+        pending_import["rows"],
+        pending_import["detection"],
+        review_settings or pending_import.get("review_settings"),
+    )
+    pending_import["review_settings"] = review["review_settings"]
+
+    mapping_fields = []
+    for field_name in ("name", "major", "email", "timestamp"):
+        mapping_fields.append(
+            {
+                "name": field_name,
+                "label": FIELD_LABELS[field_name],
+                "selected_header": review["review_settings"].get(f"{field_name}_column", ""),
+            }
+        )
+
+    return {
+        "detected_columns": review["detected_columns"],
+        "header_count": review["header_count"],
+        "identifier_label": review["identifier_label"],
+        "identifier_options": review["identifier_options"],
+        "review_settings": review["review_settings"],
+        "mapping_fields": mapping_fields,
+        "preview": review["preview"],
+        "header_row_number": pending_import["header_row_number"],
+        "has_name_timestamp_option": any(
+            option["value"] == NAME_TIMESTAMP_ID for option in review["identifier_options"]
+        ),
+    }
 
 
 def dashboard_view(request):
@@ -107,9 +213,11 @@ def registered_checkin_view(request):
         return HttpResponseNotAllowed(["GET"])
 
     participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
+    configuration = get_import_configuration_snapshot()
     context = {
         "active_nav": "registered",
         "participants": participants,
+        "participant_table": _build_participant_table_context(participants, configuration),
         "registered_total": participants.count(),
         "checked_in_total": participants.filter(checked_in=True).count(),
     }
@@ -144,96 +252,88 @@ def guest_checkin_view(request):
 def import_rsvp_view(request):
     context = {
         "active_nav": "data_tools",
-        "summary": None,
-        "mapping_context": None,
+        "summary": _pop_import_summary(request),
     }
 
     if request.method == "POST":
-        action = request.POST.get("import_action", "preview")
-
-        if action == "confirm":
-            pending_import = request.session.get(IMPORT_SESSION_KEY)
-            if not pending_import:
-                context["summary"] = {
-                    "imported_count": 0,
-                    "skipped_count": 0,
-                    "duplicate_unids": [],
-                    "errors": ["No RSVP import preview is waiting for confirmation."],
-                }
-            else:
-                posted_mapping = {
-                    field: request.POST.get(f"mapping_{field}", pending_import["mapping"].get(field, ""))
-                    for field in IMPORT_FIELD_NAMES
-                }
-                pending_import["mapping"] = posted_mapping
-                context["summary"] = import_rsvp_rows(
-                    pending_import["rows"],
-                    pending_import["mapping"],
-                )
-                request.session.pop(IMPORT_SESSION_KEY, None)
-        elif action == "cancel":
-            request.session.pop(IMPORT_SESSION_KEY, None)
-            context["summary"] = None
-        elif action == "remap":
-            pending_import = request.session.get(IMPORT_SESSION_KEY)
-            if not pending_import:
-                context["summary"] = {
-                    "imported_count": 0,
-                    "skipped_count": 0,
-                    "duplicate_unids": [],
-                    "errors": ["Upload a file before changing column mapping."],
-                }
-            else:
-                mapping = {
-                    field: request.POST.get(f"mapping_{field}", "")
-                    for field in IMPORT_FIELD_NAMES
-                }
-                preview = build_import_preview(pending_import["rows"], mapping)
-                pending_import["mapping"] = mapping
-                request.session[IMPORT_SESSION_KEY] = pending_import
-                request.session.modified = True
-                context["mapping_context"] = {
-                    "headers": pending_import["headers"],
-                    "mapping": mapping,
-                    "detection": pending_import["detection"],
-                    "preview": preview,
-                    "mapping_fields": _mapping_fields_context(mapping),
-                }
+        uploaded_file = request.FILES.get("rsvp_file")
+        prepared_import = prepare_rsvp_import(uploaded_file)
+        if prepared_import["errors"]:
+            context["summary"] = {
+                "imported_count": 0,
+                "skipped_count": 0,
+                "duplicate_identifiers": [],
+                "errors": prepared_import["errors"],
+                "identifier_label": "Unique Identifier",
+            }
         else:
-            uploaded_file = request.FILES.get("rsvp_file")
-            prepared_import = prepare_rsvp_import(uploaded_file)
-            if prepared_import["errors"]:
-                context["summary"] = {
-                    "imported_count": 0,
-                    "skipped_count": 0,
-                    "duplicate_unids": [],
-                    "errors": prepared_import["errors"],
-                }
-            else:
-                request.session[IMPORT_SESSION_KEY] = {
-                    "headers": prepared_import["headers"],
-                    "rows": prepared_import["rows"],
-                    "mapping": prepared_import["mapping"],
-                    "detection": prepared_import["detection"],
-                }
-                context["mapping_context"] = {
-                    "headers": prepared_import["headers"],
-                    "mapping": prepared_import["mapping"],
-                    "detection": prepared_import["detection"],
-                    "preview": prepared_import["preview"],
-                    "mapping_fields": _mapping_fields_context(prepared_import["mapping"]),
-                }
+            _save_pending_import(request, prepared_import)
+            return redirect("checkin:import_rsvp_review")
     elif request.method != "GET":
         return HttpResponseNotAllowed(["GET", "POST"])
 
     participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
     guest_participants = GuestParticipant.objects.all().order_by("-checkin_time", "-created_at", "id")
+    configuration = get_import_configuration_snapshot()
+
     context["participants"] = participants
+    context["participant_table"] = _build_participant_table_context(participants, configuration)
     context["guest_participants"] = guest_participants
     context["registered_total"] = participants.count()
     context["registered_checked_in"] = participants.filter(checked_in=True).count()
     context["guest_count"] = guest_participants.count()
+    context["pending_import_ready"] = bool(_pending_import_payload(request))
     return render(request, "import_rsvp.html", context)
+
+
+def import_rsvp_review_view(request):
+    pending_import = _pending_import_payload(request)
+    if not pending_import:
+        request.session[IMPORT_RESULT_SESSION_KEY] = {
+            "imported_count": 0,
+            "skipped_count": 0,
+            "duplicate_identifiers": [],
+            "errors": ["Upload an RSVP file before opening the import review step."],
+            "identifier_label": "Unique Identifier",
+        }
+        request.session.modified = True
+        return redirect("checkin:import_rsvp")
+
+    if request.method == "POST":
+        action = request.POST.get("review_action", "update")
+        if action == "cancel":
+            request.session.pop(IMPORT_SESSION_KEY, None)
+            request.session.modified = True
+            return redirect("checkin:import_rsvp")
+
+        review_settings = _review_settings_from_post(request)
+        review_context = _build_review_context(pending_import, review_settings)
+        request.session[IMPORT_SESSION_KEY] = pending_import
+        request.session.modified = True
+
+        if action == "confirm":
+            summary = import_rsvp_rows(
+                pending_import["rows"],
+                pending_import["headers"],
+                pending_import["detection"],
+                review_context["review_settings"],
+            )
+            request.session.pop(IMPORT_SESSION_KEY, None)
+            request.session[IMPORT_RESULT_SESSION_KEY] = summary
+            request.session.modified = True
+            return redirect("checkin:import_rsvp")
+    elif request.method == "GET":
+        review_context = _build_review_context(pending_import)
+        request.session[IMPORT_SESSION_KEY] = pending_import
+        request.session.modified = True
+    else:
+        return HttpResponseNotAllowed(["GET", "POST"])
+
+    context = {
+        "active_nav": "data_tools",
+        "review_context": review_context,
+    }
+    return render(request, "import_rsvp_review.html", context)
 
 
 def export_attendance_view(request):
@@ -250,6 +350,13 @@ def export_rsvp_view(request):
     return build_rsvp_csv_response()
 
 
+def export_rsvp_xlsx_view(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    return build_rsvp_xlsx_response()
+
+
 def toggle_checkin(request, participant_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
@@ -260,7 +367,7 @@ def toggle_checkin(request, participant_id):
     participant.save(update_fields=["checked_in", "checkin_time", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "checkin/partials/checkin_row.html", {
+        return render(request, "checkin/partials/checkin_button.html", {
             "participant": participant,
             "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
             "is_htmx": True,
