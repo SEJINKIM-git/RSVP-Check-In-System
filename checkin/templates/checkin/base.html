@@ -157,6 +157,10 @@
                     <span class="material-symbols-outlined">import_export</span>
                     <span>Data Tools</span>
                 </a>
+                <a class="{% if active_nav == 'analytics' %}bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-semibold{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900{% endif %} mx-2 px-4 py-3 flex items-center gap-3 rounded-lg transition-all duration-200 ease-in-out" href="{% url 'checkin:analytics' %}">
+                    <span class="material-symbols-outlined">bar_chart</span>
+                    <span>Analytics</span>
+                </a>
             </nav>
         </aside>
 
@@ -181,6 +185,10 @@
         <a class="{% if active_nav == 'data_tools' %}text-red-700 bg-red-50 rounded-xl px-4 py-1 scale-95{% else %}text-gray-500{% endif %} flex flex-col items-center justify-center transition-transform" href="{% url 'checkin:import_rsvp' %}">
             <span class="material-symbols-outlined">settings</span>
             <span>Tools</span>
+        </a>
+        <a class="{% if active_nav == 'analytics' %}text-red-700 bg-red-50 rounded-xl px-4 py-1 scale-95{% else %}text-gray-500{% endif %} flex flex-col items-center justify-center transition-transform" href="{% url 'checkin:analytics' %}">
+            <span class="material-symbols-outlined">bar_chart</span>
+            <span>Analytics</span>
         </a>
     </nav>
 

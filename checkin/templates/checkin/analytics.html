@@ -1,0 +1,226 @@
+{% extends "checkin/base.html" %}
+
+{% block title %}Analytics | UAC RSVP{% endblock %}
+
+{% block extra_styles %}
+    .chart-container { position: relative; }
+    .donut-center {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        pointer-events: none;
+    }
+{% endblock %}
+
+{% block content %}
+    <div>
+        <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface whitespace-nowrap">Analytics</h1>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Check-in trends by time and participant breakdown by major.</p>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-lg">
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Total RSVP</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_registered }}</p>
+            <p class="text-body-sm text-secondary">registered participants</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Checked In</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_checked_in }}</p>
+            <p class="text-body-sm text-secondary">including walk-ins</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-ambient border border-gray-100 p-lg flex flex-col gap-sm">
+            <p class="text-label-sm uppercase tracking-widest text-secondary">Walk-In Guests</p>
+            <p class="font-lexend text-5xl font-black text-primary">{{ total_guest }}</p>
+            <p class="text-body-sm text-secondary">not on RSVP list</p>
+        </div>
+    </div>
+
+    <!-- Time-based check-in chart -->
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Check-In Activity by Hour</h2>
+            <p class="mt-2 text-secondary">Attendees checked in per hour — bar shows per-hour count, line shows cumulative total.</p>
+        </div>
+        <div class="p-lg">
+            {% if has_checkin_data %}
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="timeChart"></canvas>
+                </div>
+            {% else %}
+                <div class="py-xl text-center text-secondary">
+                    <span class="material-symbols-outlined text-5xl text-gray-300">schedule</span>
+                    <p class="mt-md">No check-in data yet. Times will appear here once attendees start arriving.</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Major distribution -->
+    <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
+        <div class="p-lg border-b border-gray-100">
+            <h2 class="font-lexend text-2xl font-bold text-on-surface">Participant Distribution by Major</h2>
+            <p class="mt-2 text-secondary">All RSVP registrants by declared major. Blank or unrecognized entries are grouped under <strong>Other</strong>.</p>
+        </div>
+        <div class="p-lg">
+            {% if has_major_data %}
+                <div class="flex flex-col lg:flex-row gap-xl items-start">
+                    <!-- Donut chart -->
+                    <div class="relative w-full lg:w-64 flex-shrink-0" style="max-width: 260px;">
+                        <canvas id="majorDonut"></canvas>
+                        <div class="donut-center">
+                            <p class="font-lexend text-3xl font-black text-on-surface">{{ total_registered }}</p>
+                            <p class="text-label-sm text-secondary uppercase tracking-wider">Total</p>
+                        </div>
+                    </div>
+                    <!-- Legend table -->
+                    <div class="flex-1 w-full overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-body-sm">
+                            <thead>
+                                <tr class="text-secondary border-b border-gray-100">
+                                    <th class="pb-sm pr-lg font-label-md uppercase tracking-wider">Major</th>
+                                    <th class="pb-sm pr-lg font-label-md uppercase tracking-wider w-40">Distribution</th>
+                                    <th class="pb-sm pr-md font-label-md uppercase tracking-wider text-right">Count</th>
+                                    <th class="pb-sm font-label-md uppercase tracking-wider text-right">%</th>
+                                </tr>
+                            </thead>
+                            <tbody id="major-legend-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="py-xl text-center text-secondary">
+                    <span class="material-symbols-outlined text-5xl text-gray-300">school</span>
+                    <p class="mt-md">No participant data available yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    const PALETTE = [
+        "#9e0000","#e84040","#f97316","#eab308","#22c55e",
+        "#14b8a6","#3b82f6","#8b5cf6","#ec4899","#78716c",
+        "#0ea5e9","#84cc16","#f43f5e","#6366f1","#a3e635",
+    ];
+
+    {% if has_checkin_data %}
+    (function () {
+        const labels  = {{ checkin_time_labels|safe }};
+        const perHour = {{ checkin_time_values|safe }};
+        const cumul   = {{ cumulative_values|safe }};
+
+        new Chart(document.getElementById("timeChart").getContext("2d"), {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: "Check-ins per hour",
+                        data: perHour,
+                        backgroundColor: "rgba(158,0,0,0.75)",
+                        borderRadius: 6,
+                        order: 2,
+                        yAxisID: "y",
+                    },
+                    {
+                        label: "Cumulative",
+                        data: cumul,
+                        type: "line",
+                        borderColor: "#1a1c1c",
+                        backgroundColor: "transparent",
+                        pointBackgroundColor: "#1a1c1c",
+                        borderWidth: 2,
+                        tension: 0.35,
+                        order: 1,
+                        yAxisID: "y2",
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "top", labels: { font: { family: "Inter", size: 12 }, padding: 16 } },
+                    tooltip: { mode: "index", intersect: false }
+                },
+                scales: {
+                    y:  { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: "Per Hour" } },
+                    y2: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Cumulative" } },
+                    x:  { grid: { display: false } }
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    {% if has_major_data %}
+    (function () {
+        const labels = {{ major_labels|safe }};
+        const values = {{ major_values|safe }};
+        const total  = values.reduce((a, b) => a + b, 0);
+        const colors = labels.map((_, i) => PALETTE[i % PALETTE.length]);
+
+        new Chart(document.getElementById("majorDonut").getContext("2d"), {
+            type: "doughnut",
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    borderColor: "#ffffff",
+                    hoverOffset: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                cutout: "65%",
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const tbody = document.getElementById("major-legend-body");
+        const maxVal = values[0];
+        labels.forEach((label, i) => {
+            const count = values[i];
+            const pct   = total ? ((count / total) * 100).toFixed(1) : 0;
+            const barW  = maxVal ? ((count / maxVal) * 100).toFixed(1) : 0;
+            const color = colors[i];
+
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-gray-50";
+            tr.innerHTML = `
+                <td class="py-sm pr-lg">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle;"></span>
+                    ${label}
+                </td>
+                <td class="py-sm pr-md">
+                    <div style="background:#f3f3f3;border-radius:4px;height:8px;overflow:hidden;">
+                        <div style="width:${barW}%;height:100%;border-radius:4px;background:${color};"></div>
+                    </div>
+                </td>
+                <td class="py-sm pr-md text-right font-semibold">${count}</td>
+                <td class="py-sm text-right text-secondary">${pct}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    })();
+    {% endif %}
+</script>
+{% endblock %}

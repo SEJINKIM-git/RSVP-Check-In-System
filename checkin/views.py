@@ -1,7 +1,10 @@
+import json
 import os
+from collections import Counter, defaultdict
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, F
+from django.db.models.functions import TruncHour
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
@@ -288,3 +291,97 @@ def delete_all_guests(request):
 
     GuestParticipant.objects.all().delete()
     return _redirect_to_next(request, "checkin:guest_checkin")
+
+
+def _normalize_major(major_str):
+    if not major_str or major_str.strip().lower() in ("none", "n/a", "-", "", "null", "na"):
+        return "Other"
+    return major_str.strip()
+
+
+def _hour_label(dt):
+    h = dt.hour
+    period = "AM" if h < 12 else "PM"
+    display = h % 12 or 12
+    return f"{display}:00 {period}"
+
+
+def analytics_view(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    try:
+        # Time-based check-in chart (registered + guest)
+        hour_counts = defaultdict(int)
+        for row in (
+            RegisteredParticipant.objects.filter(checked_in=True, checkin_time__isnull=False)
+            .annotate(hour=TruncHour("checkin_time"))
+            .values("hour")
+            .annotate(count=Count("id"))
+        ):
+            hour_counts[row["hour"]] += row["count"]
+        for row in (
+            GuestParticipant.objects.filter(checked_in=True, checkin_time__isnull=False)
+            .annotate(hour=TruncHour("checkin_time"))
+            .values("hour")
+            .annotate(count=Count("id"))
+        ):
+            hour_counts[row["hour"]] += row["count"]
+
+        sorted_hours = sorted(hour_counts)
+        checkin_time_labels = [_hour_label(h) for h in sorted_hours]
+        checkin_time_values = [hour_counts[h] for h in sorted_hours]
+
+        cumulative, running = [], 0
+        for v in checkin_time_values:
+            running += v
+            cumulative.append(running)
+
+        # Major distribution (all registered + guests with a major)
+        major_counter = Counter()
+        for p in RegisteredParticipant.objects.values("major"):
+            major_counter[_normalize_major(p["major"])] += 1
+        for p in GuestParticipant.objects.values("major"):
+            if p["major"]:
+                major_counter[_normalize_major(p["major"])] += 1
+
+        sorted_majors = sorted(major_counter.items(), key=lambda x: (x[0] == "Other", -x[1]))
+        major_labels = [m[0] for m in sorted_majors]
+        major_values = [m[1] for m in sorted_majors]
+
+        total_registered = RegisteredParticipant.objects.count()
+        total_checked_in = (
+            RegisteredParticipant.objects.filter(checked_in=True).count()
+            + GuestParticipant.objects.filter(checked_in=True).count()
+        )
+        total_guest = GuestParticipant.objects.count()
+
+        context = {
+            "active_nav": "analytics",
+            "checkin_time_labels": json.dumps(checkin_time_labels),
+            "checkin_time_values": json.dumps(checkin_time_values),
+            "cumulative_values": json.dumps(cumulative),
+            "major_labels": json.dumps(major_labels),
+            "major_values": json.dumps(major_values),
+            "total_registered": total_registered,
+            "total_checked_in": total_checked_in,
+            "total_guest": total_guest,
+            "has_checkin_data": bool(sorted_hours),
+            "has_major_data": bool(major_labels),
+        }
+    except (OperationalError, ProgrammingError):
+        context = {
+            "active_nav": "analytics",
+            "checkin_time_labels": json.dumps([]),
+            "checkin_time_values": json.dumps([]),
+            "cumulative_values": json.dumps([]),
+            "major_labels": json.dumps([]),
+            "major_values": json.dumps([]),
+            "total_registered": 0,
+            "total_checked_in": 0,
+            "total_guest": 0,
+            "has_checkin_data": False,
+            "has_major_data": False,
+        }
+
+    return render(request, "checkin/analytics.html", context)
