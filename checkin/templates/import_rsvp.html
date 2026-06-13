@@ -275,11 +275,11 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Data Exports</h2>
-            <p class="mt-2 text-secondary">Download the current RSVP list or the final attendance file without leaving Data Tools.</p>
+            <p class="mt-2 text-secondary">Download the current RSVP list, the full attendance workbook, or the final attendance CSV without leaving Data Tools.</p>
         </div>
         <div class="p-lg grid gap-md">
             <a class="flex items-center justify-between rounded-xl bg-primary text-white p-md font-lexend font-semibold transition-colors hover:bg-primary-container" href="{% url 'checkin:export_rsvp_xlsx' %}">
-                Export RSVP Data (.xlsx)
+                Export Full Attendance Report (.xlsx)
                 <span class="material-symbols-outlined">download</span>
             </a>
             <a class="flex items-center justify-between rounded-xl bg-surface-container-low p-md font-lexend font-semibold text-secondary transition-colors hover:bg-gray-100" href="{% url 'checkin:export_rsvp' %}" download>
