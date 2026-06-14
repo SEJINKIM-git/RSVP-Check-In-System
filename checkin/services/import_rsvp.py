@@ -24,7 +24,6 @@ HIGH_CONFIDENCE_THRESHOLD = 0.9
 LOW_CONFIDENCE_THRESHOLD = 0.72
 
 LEGACY_DEFAULT_COLUMNS = ["Name", "UNID", "Major"]
-LEGACY_SEARCHABLE_COLUMNS = ["Name", "UNID", "Major"]
 
 SUGGESTED_FIELD_NAMES = ("name", "major", "email", "timestamp")
 FIELD_LABELS = {
@@ -347,17 +346,7 @@ def build_default_review_settings(headers, detection):
     unique_identifier_selection = _guess_unique_identifier_selection(detection)
 
     display_columns = _default_display_columns(headers, matches, unique_identifier_selection)
-    searchable_columns = _dedupe_preserve_order(
-        [
-            unique_identifier_selection
-            if unique_identifier_selection not in {GENERATE_INTERNAL_ID, NAME_TIMESTAMP_ID}
-            else "",
-            matches.get("email", {}).get("header", ""),
-            matches.get("name", {}).get("header", ""),
-            matches.get("major", {}).get("header", ""),
-            *display_columns,
-        ]
-    ) or display_columns
+    searchable_columns = display_columns[:]
 
     return {
         "unique_identifier_selection": unique_identifier_selection,
@@ -429,13 +418,7 @@ def normalize_review_settings(review_settings, headers, detection):
     if not display_columns:
         display_columns = defaults["display_columns"] or headers[:4]
 
-    searchable_columns = _valid_selected_headers(
-        review_settings.get("searchable_columns", defaults["searchable_columns"]),
-        headers,
-    )
-    searchable_columns = [column for column in searchable_columns if column in display_columns]
-    if not searchable_columns:
-        searchable_columns = display_columns[:]
+    searchable_columns = display_columns[:]
 
     return {
         "unique_identifier_selection": unique_identifier_selection,
@@ -616,7 +599,7 @@ def save_import_configuration(review_settings, headers):
     configuration, _ = RSVPImportConfiguration.objects.get_or_create(pk=1)
     configuration.imported_columns = review_settings["display_columns"][:]
     configuration.display_columns = review_settings["display_columns"]
-    configuration.searchable_columns = review_settings["searchable_columns"]
+    configuration.searchable_columns = review_settings["display_columns"][:]
     configuration.unique_identifier_strategy = review_settings["unique_identifier_strategy"]
     configuration.unique_identifier_source = review_settings["unique_identifier_source"]
     configuration.name_column = review_settings["name_column"]
@@ -633,7 +616,7 @@ def get_import_configuration_snapshot():
         return {
             "imported_columns": LEGACY_DEFAULT_COLUMNS[:],
             "display_columns": LEGACY_DEFAULT_COLUMNS[:],
-            "searchable_columns": LEGACY_SEARCHABLE_COLUMNS[:],
+            "searchable_columns": LEGACY_DEFAULT_COLUMNS[:],
             "unique_identifier_strategy": RSVPImportConfiguration.UNIQUE_IDENTIFIER_COLUMN,
             "unique_identifier_source": "UNID",
             "name_column": "Name",
@@ -658,8 +641,7 @@ def get_import_configuration_snapshot():
         snapshot["imported_columns"] = LEGACY_DEFAULT_COLUMNS[:]
     if not snapshot["display_columns"]:
         snapshot["display_columns"] = snapshot["imported_columns"][:3] or LEGACY_DEFAULT_COLUMNS[:]
-    if not snapshot["searchable_columns"]:
-        snapshot["searchable_columns"] = snapshot["display_columns"][:]
+    snapshot["searchable_columns"] = snapshot["display_columns"][:]
     snapshot["identifier_label"] = get_unique_identifier_label(snapshot)
     return snapshot
 

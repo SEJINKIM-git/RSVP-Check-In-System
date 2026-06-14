@@ -74,7 +74,7 @@ def _build_search_placeholder(searchable_columns):
 
 def _build_participant_table_context(participants, configuration):
     display_columns = configuration.get("display_columns") or configuration.get("imported_columns") or []
-    searchable_columns = configuration.get("searchable_columns") or display_columns
+    searchable_columns = display_columns[:]
     identifier_label = configuration.get("identifier_label") or "Unique Identifier"
 
     rows = []
@@ -133,14 +133,15 @@ def _save_pending_import(request, prepared_import):
 
 
 def _review_settings_from_post(request):
+    selected_columns = request.POST.getlist("display_columns")
     return {
         "unique_identifier_selection": request.POST.get("unique_identifier_selection", GENERATE_INTERNAL_ID),
         "name_column": request.POST.get("name_column", ""),
         "major_column": request.POST.get("major_column", ""),
         "email_column": request.POST.get("email_column", ""),
         "timestamp_column": request.POST.get("timestamp_column", ""),
-        "display_columns": request.POST.getlist("display_columns"),
-        "searchable_columns": request.POST.getlist("searchable_columns"),
+        "display_columns": selected_columns,
+        "searchable_columns": selected_columns[:],
     }
 
 

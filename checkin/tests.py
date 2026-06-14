@@ -145,6 +145,32 @@ class RSVPImportServiceTests(TestCase):
             participants[0].answers["Preferred Workshop"],
             "AI Product Design",
         )
+        configuration = get_import_configuration_snapshot()
+        self.assertEqual(
+            configuration["display_columns"],
+            ["Favorite Color", "Preferred Workshop"],
+        )
+        self.assertEqual(
+            configuration["searchable_columns"],
+            ["Favorite Color", "Preferred Workshop"],
+        )
+
+    def test_saved_configuration_uses_selected_columns_for_search_when_legacy_values_differ(self):
+        RSVPImportConfiguration.objects.create(
+            pk=1,
+            imported_columns=["Full Name", "Original Team"],
+            display_columns=["Full Name", "Original Team"],
+            searchable_columns=["Full Name"],
+            unique_identifier_source="Student ID",
+            name_column="Full Name",
+        )
+
+        configuration = get_import_configuration_snapshot()
+
+        self.assertEqual(
+            configuration["searchable_columns"],
+            ["Full Name", "Original Team"],
+        )
 
     def test_import_skips_duplicate_selected_identifiers(self):
         RegisteredParticipant.objects.create(
@@ -228,7 +254,6 @@ class ImportReviewFlowTests(TestCase):
                 "email_column": "Email",
                 "timestamp_column": "Timestamp",
                 "display_columns": ["Full Name", "Email", "Dietary Restrictions"],
-                "searchable_columns": ["Full Name", "Email", "Will you attend?"],
             },
             follow=True,
         )
@@ -263,10 +288,31 @@ class ImportReviewFlowTests(TestCase):
             configuration.display_columns,
             ["Full Name", "Email", "Dietary Restrictions"],
         )
-        self.assertEqual(configuration.searchable_columns, ["Full Name", "Email"])
+        self.assertEqual(
+            configuration.searchable_columns,
+            ["Full Name", "Email", "Dietary Restrictions"],
+        )
 
         self.assertContains(response, "Imported Rows")
         self.assertContains(response, "2")
+
+    def test_review_page_uses_single_selected_columns_section(self):
+        uploaded_file = SimpleUploadedFile(
+            "rsvp.csv",
+            (
+                "Timestamp,Full Name,Student ID,Email,Major\n"
+                "2026-05-01 09:00,Alice Kim,U1234567,alice@example.com,Finance\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        self.client.post("/checkin/import/", {"rsvp_file": uploaded_file})
+
+        response = self.client.get("/checkin/import/review/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Selected RSVP Columns")
+        self.assertNotContains(response, "Searchable Columns")
 
     def test_registered_page_uses_selected_display_and_search_columns(self):
         uploaded_file = SimpleUploadedFile(
@@ -289,7 +335,6 @@ class ImportReviewFlowTests(TestCase):
                 "email_column": "Email",
                 "timestamp_column": "Timestamp",
                 "display_columns": ["Full Name", "Email", "Dietary Restrictions"],
-                "searchable_columns": ["Full Name", "Email"],
             },
         )
 
@@ -299,7 +344,16 @@ class ImportReviewFlowTests(TestCase):
         self.assertContains(response, "Email")
         self.assertContains(response, "Dietary Restrictions")
         self.assertNotContains(response, "Major</th>", html=False)
-        self.assertContains(response, 'placeholder="Search by Full Name, Email"', html=False)
+        self.assertContains(
+            response,
+            'placeholder="Search by Full Name, Email, Dietary Restrictions"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-search="alice kim alice@example.com none"',
+            html=False,
+        )
         self.assertNotContains(response, "Export Full Attendance Report (.xlsx)")
         self.assertNotContains(
             response,

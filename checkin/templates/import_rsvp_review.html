@@ -5,7 +5,7 @@
 {% block content %}
     <div>
         <h1 class="font-lexend font-black text-4xl md:text-6xl lg:text-7xl text-on-surface">Review RSVP Import</h1>
-        <p class="mt-md max-w-3xl text-body-md text-secondary">Step 2 of 2: confirm the detected header row, choose how rows should be identified, and decide which RSVP columns should be saved, displayed, analyzed, and exported.</p>
+        <p class="mt-md max-w-3xl text-body-md text-secondary">Step 2 of 2: confirm the detected header row, choose how rows should be identified, and decide which RSVP columns should be saved, displayed, searched, analyzed, and exported.</p>
     </div>
 
     <div class="flex justify-end">
@@ -83,29 +83,15 @@
                 {% endfor %}
             </div>
 
-            <div class="grid gap-lg lg:grid-cols-2">
-                <div class="rounded-xl border border-gray-100 p-lg">
-                    <h3 class="font-lexend text-xl font-bold text-on-surface">Selected RSVP Columns</h3>
-                    <div class="mt-md grid gap-sm">
-                        {% for column in review_context.detected_columns %}
-                            <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
-                                <input class="rounded border-gray-300 text-primary focus:ring-primary" type="checkbox" name="display_columns" value="{{ column }}" {% if column in review_context.review_settings.display_columns %}checked{% endif %}>
-                                <span>{{ column }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <div class="rounded-xl border border-gray-100 p-lg">
-                    <h3 class="font-lexend text-xl font-bold text-on-surface">Searchable Columns</h3>
-                    <div class="mt-md grid gap-sm">
-                        {% for column in review_context.detected_columns %}
-                            <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
-                                <input class="rounded border-gray-300 text-primary focus:ring-primary" type="checkbox" name="searchable_columns" value="{{ column }}" {% if column in review_context.review_settings.searchable_columns %}checked{% endif %}>
-                                <span>{{ column }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
+            <div class="rounded-xl border border-gray-100 p-lg">
+                <h3 class="font-lexend text-xl font-bold text-on-surface">Selected RSVP Columns</h3>
+                <div class="mt-md grid gap-sm md:grid-cols-2">
+                    {% for column in review_context.detected_columns %}
+                        <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
+                            <input class="rounded border-gray-300 text-primary focus:ring-primary" type="checkbox" name="display_columns" value="{{ column }}" {% if column in review_context.review_settings.display_columns %}checked{% endif %}>
+                            <span>{{ column }}</span>
+                        </label>
+                    {% endfor %}
                 </div>
             </div>
 
