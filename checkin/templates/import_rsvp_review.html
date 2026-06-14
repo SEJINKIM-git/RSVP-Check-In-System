@@ -19,7 +19,6 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Detected File Structure</h2>
-            <p class="mt-2 text-secondary">The importer scanned the first several rows and picked spreadsheet row {{ review_context.header_row_number }} as the header row.</p>
         </div>
         <div class="p-lg space-y-lg">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
@@ -48,7 +47,6 @@
     <section class="bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden">
         <div class="p-lg border-b border-gray-100">
             <h2 class="font-lexend text-2xl font-bold text-on-surface">Import Settings</h2>
-            <p class="mt-2 text-secondary">Suggested mappings are preselected, but you can change them before the final import.</p>
         </div>
         <form method="post" class="p-lg space-y-lg">
             {% csrf_token %}
@@ -61,15 +59,12 @@
                             <option value="{{ option.value }}" {% if option.value == review_context.review_settings.unique_identifier_selection %}selected{% endif %}>{{ option.label }}</option>
                         {% endfor %}
                     </select>
-                    <p class="mt-sm text-sm text-secondary">This value will be used to detect duplicates and keep each RSVP row uniquely identifiable.</p>
                 </div>
                 <div class="rounded-xl bg-surface-container-low p-md">
                     <p class="font-label-md uppercase text-secondary">Suggested Unique Identifier</p>
                     <p class="mt-sm text-xl font-black text-on-surface">{{ review_context.identifier_label }}</p>
                     {% if review_context.has_name_timestamp_option %}
                         <p class="mt-sm text-sm text-secondary">If the sheet has no dedicated ID column, you can use Name + Timestamp as a reliable fallback.</p>
-                    {% else %}
-                        <p class="mt-sm text-sm text-secondary">If none of the detected columns are reliable, choose the generated internal RSVP ID option.</p>
                     {% endif %}
                 </div>
             </div>
@@ -91,7 +86,6 @@
             <div class="grid gap-lg lg:grid-cols-2">
                 <div class="rounded-xl border border-gray-100 p-lg">
                     <h3 class="font-lexend text-xl font-bold text-on-surface">Selected RSVP Columns</h3>
-                    <p class="mt-2 text-secondary">Only these columns will be saved from the upload and then used for the RSVP table, analysis, and XLSX export.</p>
                     <div class="mt-md grid gap-sm">
                         {% for column in review_context.detected_columns %}
                             <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
@@ -104,7 +98,6 @@
 
                 <div class="rounded-xl border border-gray-100 p-lg">
                     <h3 class="font-lexend text-xl font-bold text-on-surface">Searchable Columns</h3>
-                    <p class="mt-2 text-secondary">Search on the RSVP pages will only use the saved selected columns checked here.</p>
                     <div class="mt-md grid gap-sm">
                         {% for column in review_context.detected_columns %}
                             <label class="flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm text-body-md">
