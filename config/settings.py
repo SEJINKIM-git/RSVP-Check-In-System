@@ -17,6 +17,10 @@ import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+VERCEL_ENV = os.environ.get("VERCEL_ENV", "").strip().lower()
+IS_VERCEL_DEPLOYMENT = VERCEL_ENV in {"preview", "production"} or (
+    bool(os.environ.get("VERCEL")) and VERCEL_ENV != "development"
+)
 
 
 def _get_bool_env(name, default=False):
@@ -64,7 +68,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _get_bool_env("DJANGO_DEBUG", default=not os.environ.get("VERCEL"))
+DEBUG = _get_bool_env("DJANGO_DEBUG", default=not IS_VERCEL_DEPLOYMENT)
 
 ALLOWED_HOSTS = [
     "spring26-rsvp-checkin-system.vercel.app",
@@ -87,15 +91,22 @@ CSRF_TRUSTED_ORIGINS = [
 
 CSRF_TRUSTED_ORIGINS.extend(_get_list_env("DJANGO_CSRF_TRUSTED_ORIGINS"))
 
-if os.environ.get("VERCEL"):
+if IS_VERCEL_DEPLOYMENT:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "3600"))
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-if os.environ.get("VERCEL") and SECRET_KEY.startswith("django-insecure-"):
+if IS_VERCEL_DEPLOYMENT and SECRET_KEY.startswith("django-insecure-"):
     raise RuntimeError(
         "Set the DJANGO_SECRET_KEY environment variable for the Vercel deployment."
+    )
+
+if IS_VERCEL_DEPLOYMENT and not os.environ.get("DATABASE_URL"):
+    raise RuntimeError(
+        "Set DATABASE_URL to a managed PostgreSQL database for the Vercel deployment. "
+        "SQLite is not persistent on Vercel."
     )
 
 
@@ -113,6 +124,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -185,5 +197,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
