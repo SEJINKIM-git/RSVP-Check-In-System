@@ -723,6 +723,34 @@ class ParticipantListAndAdminFlowTests(TestCase):
         self.assertContains(response, 'id="import-checked-in-total"', html=False)
         self.assertNotIn("Location", response)
 
+    def test_registered_page_sets_csrf_cookie_for_htmx_toggle(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="CSRF Toggle Student",
+            unid="u4005",
+            major="Operations",
+            checked_in=False,
+            checkin_time=None,
+        )
+        csrf_client = self.client_class(enforce_csrf_checks=True)
+
+        page_response = csrf_client.get("/checkin/registered/")
+
+        self.assertEqual(page_response.status_code, 200)
+        self.assertIn("csrftoken", page_response.cookies)
+
+        csrf_token = page_response.cookies["csrftoken"].value
+        toggle_response = csrf_client.post(
+            f"/checkin/participants/{participant.id}/toggle-checkin/",
+            HTTP_HX_REQUEST="true",
+            HTTP_X_CSRFTOKEN=csrf_token,
+            HTTP_REFERER="http://testserver/checkin/registered/",
+        )
+
+        participant.refresh_from_db()
+        self.assertEqual(toggle_response.status_code, 200)
+        self.assertTrue(participant.checked_in)
+
     def test_toggle_checkin_updates_status_and_time(self):
         participant = RegisteredParticipant.objects.create(
             submission_order=1,

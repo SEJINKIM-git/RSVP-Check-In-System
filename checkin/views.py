@@ -9,6 +9,7 @@ from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from checkin.forms import GuestCheckInForm
 from checkin.models import GuestParticipant, RegisteredParticipant
@@ -238,6 +239,7 @@ def dashboard_view(request):
     return render(request, "checkin/dashboard.html", context)
 
 
+@ensure_csrf_cookie
 def registered_checkin_view(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
