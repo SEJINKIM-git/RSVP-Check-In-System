@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, F, Q
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
@@ -38,6 +38,27 @@ DATABASE_UNAVAILABLE_MESSAGE = (
     "SQLite files from local development are not a reliable production database on Vercel."
 )
 
+REGISTERED_PARTICIPANT_LIST_FIELDS = (
+    "id",
+    "submission_order",
+    "name",
+    "unid",
+    "major",
+    "email",
+    "answers",
+    "checked_in",
+    "checkin_time",
+)
+GUEST_PARTICIPANT_LIST_FIELDS = (
+    "id",
+    "name",
+    "unid",
+    "major",
+    "checked_in",
+    "checkin_time",
+    "created_at",
+)
+
 
 def _database_unavailable_context():
     return {
@@ -70,6 +91,10 @@ def _build_search_placeholder(searchable_columns):
     if len(searchable_columns) <= 3:
         return "Search by " + ", ".join(searchable_columns)
     return "Search selected RSVP columns"
+
+
+def _count_checked_in(participants):
+    return sum(1 for participant in participants if participant.checked_in)
 
 
 def _build_participant_table_context(participants, configuration):
@@ -181,8 +206,12 @@ def _build_review_context(pending_import, review_settings=None):
 
 def dashboard_view(request):
     try:
-        total_rsvp = RegisteredParticipant.objects.count()
-        registered_checked_in = RegisteredParticipant.objects.filter(checked_in=True).count()
+        registered_summary = RegisteredParticipant.objects.aggregate(
+            total_rsvp=Count("id"),
+            registered_checked_in=Count("id", filter=Q(checked_in=True)),
+        )
+        total_rsvp = registered_summary["total_rsvp"] or 0
+        registered_checked_in = registered_summary["registered_checked_in"] or 0
         guest_count = GuestParticipant.objects.count()
         current_total_attendance = registered_checked_in + guest_count
         attendance_pool_total = total_rsvp + guest_count
@@ -213,14 +242,20 @@ def registered_checkin_view(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
 
-    participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
+    participants = list(
+        RegisteredParticipant.objects.only(*REGISTERED_PARTICIPANT_LIST_FIELDS).order_by(
+            "submission_order",
+            "id",
+        )
+    )
     configuration = get_import_configuration_snapshot()
+    checked_in_total = _count_checked_in(participants)
     context = {
         "active_nav": "registered",
         "participants": participants,
         "participant_table": _build_participant_table_context(participants, configuration),
-        "registered_total": participants.count(),
-        "checked_in_total": participants.filter(checked_in=True).count(),
+        "registered_total": len(participants),
+        "checked_in_total": checked_in_total,
     }
     return render(request, "checkin/registered_checkin.html", context)
 
@@ -273,16 +308,27 @@ def import_rsvp_view(request):
     elif request.method != "GET":
         return HttpResponseNotAllowed(["GET", "POST"])
 
-    participants = RegisteredParticipant.objects.all().order_by("submission_order", "id")
-    guest_participants = GuestParticipant.objects.all().order_by("-checkin_time", "-created_at", "id")
+    participants = list(
+        RegisteredParticipant.objects.only(*REGISTERED_PARTICIPANT_LIST_FIELDS).order_by(
+            "submission_order",
+            "id",
+        )
+    )
+    guest_participants = list(
+        GuestParticipant.objects.only(*GUEST_PARTICIPANT_LIST_FIELDS).order_by(
+            "-checkin_time",
+            "-created_at",
+            "id",
+        )
+    )
     configuration = get_import_configuration_snapshot()
 
     context["participants"] = participants
     context["participant_table"] = _build_participant_table_context(participants, configuration)
     context["guest_participants"] = guest_participants
-    context["registered_total"] = participants.count()
-    context["registered_checked_in"] = participants.filter(checked_in=True).count()
-    context["guest_count"] = guest_participants.count()
+    context["registered_total"] = len(participants)
+    context["registered_checked_in"] = _count_checked_in(participants)
+    context["guest_count"] = len(guest_participants)
     context["pending_import_ready"] = bool(_pending_import_payload(request))
     return render(request, "import_rsvp.html", context)
 
@@ -368,12 +414,17 @@ def toggle_checkin(request, participant_id):
     participant.save(update_fields=["checked_in", "checkin_time", "updated_at"])
 
     if request.headers.get("HX-Request"):
+        checked_in_total = RegisteredParticipant.objects.filter(checked_in=True).count()
+        toggle_view = request.POST.get("toggle_view")
+        template_name = "checkin/partials/checkin_button.html"
+        if toggle_view == "import":
+            template_name = "checkin/partials/import_checkin_button.html"
         return render(
             request,
-            "checkin/partials/checkin_button.html",
+            template_name,
             {
                 "participant": participant,
-                "checked_in_total": RegisteredParticipant.objects.filter(checked_in=True).count(),
+                "checked_in_total": checked_in_total,
                 "is_htmx": True,
             },
         )
@@ -449,13 +500,13 @@ def analytics_view(request):
             or []
         )
         checked_in_registered = list(
-            RegisteredParticipant.objects.filter(
+            RegisteredParticipant.objects.only(*REGISTERED_PARTICIPANT_LIST_FIELDS).filter(
                 checked_in=True,
                 checkin_time__isnull=False,
             ).order_by("submission_order", "id")
         )
         checked_in_guests = list(
-            GuestParticipant.objects.filter(
+            GuestParticipant.objects.only(*GUEST_PARTICIPANT_LIST_FIELDS).filter(
                 checked_in=True,
                 checkin_time__isnull=False,
             ).order_by("-checkin_time", "-created_at", "id")

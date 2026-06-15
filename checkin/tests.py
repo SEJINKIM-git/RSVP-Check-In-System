@@ -700,6 +700,29 @@ class ParticipantListAndAdminFlowTests(TestCase):
         self.assertContains(response, 'hx-swap-oob="true"', html=False)
         self.assertNotIn("Location", response)
 
+    def test_toggle_checkin_returns_import_partial_for_import_htmx_requests(self):
+        participant = RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Import HTMX Student",
+            unid="u4004",
+            major="Operations",
+            checked_in=False,
+            checkin_time=None,
+        )
+
+        response = self.client.post(
+            f"/checkin/participants/{participant.id}/toggle-checkin/",
+            {"toggle_view": "import"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        participant.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(participant.checked_in)
+        self.assertContains(response, 'hx-target="#import-checkin-cell-', html=False)
+        self.assertContains(response, 'id="import-checked-in-total"', html=False)
+        self.assertNotIn("Location", response)
+
     def test_toggle_checkin_updates_status_and_time(self):
         participant = RegisteredParticipant.objects.create(
             submission_order=1,
@@ -817,6 +840,22 @@ class ParticipantListAndAdminFlowTests(TestCase):
         self.assertContains(response, "Delete Guest Records")
         self.assertContains(response, "Export Full Attendance Report (.xlsx)")
 
+    def test_import_page_uses_htmx_toggle_for_checkin_buttons(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Import Page Student",
+            unid="u8123001",
+            major="Visitor",
+            checked_in=False,
+        )
+
+        response = self.client.get("/checkin/import/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="import-checkin-cell-', html=False)
+        self.assertContains(response, 'hx-target="#import-checkin-cell-', html=False)
+        self.assertContains(response, 'hx-vals=\'{"toggle_view":"import"}\'', html=False)
+
 
 class DashboardAndCheckInFlowTests(TestCase):
     def test_dashboard_shows_registered_checked_in_and_guest_counts(self):
@@ -856,7 +895,7 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertNotContains(response, "<span>Analysis</span>", html=False)
 
     def test_dashboard_handles_unavailable_database_without_500(self):
-        with patch("checkin.views.RegisteredParticipant.objects.count", side_effect=OperationalError):
+        with patch("checkin.views.RegisteredParticipant.objects.aggregate", side_effect=OperationalError):
             response = self.client.get("/checkin/")
 
         self.assertEqual(response.status_code, 200)
@@ -883,6 +922,65 @@ class DashboardAndCheckInFlowTests(TestCase):
         self.assertEqual(guest.major, "Other")
         self.assertTrue(guest.checked_in)
         self.assertIsNotNone(guest.checkin_time)
+
+    def test_dashboard_uses_two_queries_for_summary_counts(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Registered Student One",
+            unid="u9101",
+            major="Accounting",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        GuestParticipant.objects.create(
+            name="Walk In Guest",
+            unid="u9102",
+            major="Other",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        with self.assertNumQueries(2):
+            response = self.client.get("/checkin/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_registered_page_reuses_loaded_participants_for_counts(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Registered Student One",
+            unid="u9201",
+            major="Accounting",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        with self.assertNumQueries(2):
+            response = self.client.get("/checkin/registered/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_import_page_reuses_loaded_lists_for_counts(self):
+        RegisteredParticipant.objects.create(
+            submission_order=1,
+            name="Registered Student One",
+            unid="u9301",
+            major="Accounting",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+        GuestParticipant.objects.create(
+            name="Walk In Guest",
+            unid="u9302",
+            major="Other",
+            checked_in=True,
+            checkin_time=timezone.now(),
+        )
+
+        with self.assertNumQueries(3):
+            response = self.client.get("/checkin/import/")
+
+        self.assertEqual(response.status_code, 200)
 
     def test_guest_checkin_rejects_registered_unid(self):
         RegisteredParticipant.objects.create(

@@ -84,23 +84,8 @@
                                         {% endif %}
                                     </td>
                                 {% endfor %}
-                                <td class="px-lg py-md">
-                                    <form method="post" action="{% url 'checkin:toggle_checkin' row.participant.id %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="next" value="{% url 'checkin:import_rsvp' %}">
-                                        <button
-                                            type="submit"
-                                            class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-sm text-primary transition-colors hover:bg-red-50 {% if row.participant.checked_in %}border-primary bg-red-50{% endif %}"
-                                            aria-label="Toggle check-in for {{ row.display_name }}"
-                                            title="Toggle check-in"
-                                        >
-                                            {% if row.participant.checked_in %}
-                                                <span class="material-symbols-outlined text-[20px]">check</span>
-                                            {% else %}
-                                                <span class="material-symbols-outlined text-[20px] text-secondary">check_box_outline_blank</span>
-                                            {% endif %}
-                                        </button>
-                                    </form>
+                                <td class="px-lg py-md" id="import-checkin-cell-{{ row.participant.id }}">
+                                    {% include "checkin/partials/import_checkin_button.html" with participant=row.participant %}
                                 </td>
                                 <td class="px-lg py-md">
                                     <form method="post" action="{% url 'checkin:delete_participant' row.participant.id %}" onsubmit="return confirm('Delete this participant?');">
@@ -121,7 +106,7 @@
 
             <div class="p-lg bg-surface-container-low border-t border-gray-100 flex justify-between items-center">
                 <p id="visible-count-copy" class="text-body-sm text-secondary">Showing {{ registered_total }} of {{ registered_total }} entries</p>
-                <p class="text-body-sm text-secondary">{{ registered_checked_in }} checked in</p>
+                <p id="import-checked-in-total" class="text-body-sm text-secondary">{{ registered_checked_in }} checked in</p>
             </div>
         {% else %}
             <div class="p-xl">

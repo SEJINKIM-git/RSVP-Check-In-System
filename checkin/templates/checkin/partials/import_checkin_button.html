@@ -1,0 +1,21 @@
+<button
+    type="button"
+    hx-post="{% url 'checkin:toggle_checkin' participant.id %}"
+    hx-vals='{"toggle_view":"import"}'
+    hx-target="#import-checkin-cell-{{ participant.id }}"
+    hx-swap="innerHTML show:none focus-scroll:false"
+    aria-pressed="{% if participant.checked_in %}true{% else %}false{% endif %}"
+    class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-sm text-primary transition-colors hover:bg-red-50 active:scale-95 [&.htmx-request]:opacity-40 [&.htmx-request]:cursor-wait {% if participant.checked_in %}border-primary bg-red-50{% endif %}"
+    aria-label="Toggle check-in for {{ participant.name|default:participant.unid }}"
+    title="Toggle check-in"
+>
+    {% if participant.checked_in %}
+        <span class="material-symbols-outlined text-[20px]">check</span>
+    {% else %}
+        <span class="material-symbols-outlined text-[20px] text-secondary">check_box_outline_blank</span>
+    {% endif %}
+</button>
+
+{% if is_htmx %}
+<p id="import-checked-in-total" hx-swap-oob="true" class="text-body-sm text-secondary">{{ checked_in_total }} checked in</p>
+{% endif %}

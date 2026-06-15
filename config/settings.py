@@ -45,7 +45,7 @@ def _sqlite_database_config():
 def _database_config_from_url(database_url):
     return dj_database_url.parse(
         database_url,
-        conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "0")),
+        conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "60")),
         conn_health_checks=True,
         ssl_require=True,
     )
